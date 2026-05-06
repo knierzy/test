@@ -19,9 +19,10 @@ st.title("Cantor Diagram – Garnet System")
 uploaded_file = st.file_uploader(
     "Upload Excel file with Alm / Spe / Pyr / Gro columns",
     type=["xlsx"]
-    if uploaded_file is None:
-    st.stop()
 )
+
+if uploaded_file is None:
+    st.stop()
 
 convex_hulls_file_4 = "data/convex_hull_amphibolites_general.xlsx"
 convex_hulls_file_5 = "data/convex_hull_greenschists_.xlsx"
