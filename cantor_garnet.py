@@ -6,6 +6,7 @@
 # field. Provenance assignment is computed statistically via Mahalanobis distance using subfield means and standard
 # deviations.
 
+
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
@@ -224,22 +225,7 @@ if uploaded_file is not None:
         ]
     )
 
-# Remove rows with NaN in columns "Unnamed: 1" to "Unnamed: 4"; filter only rows where the sum is >= 98
-df_parameters = df[['Unnamed: 1', 'Unnamed: 2', 'Unnamed: 3', 'Unnamed: 4']].dropna()
-df_parameters = df_parameters[df_parameters.apply(lambda row: row[['Unnamed: 1', 'Unnamed: 2', 'Unnamed: 3', 'Unnamed: 4']].sum() >= 98, axis=1)]
-df_linz_params = df_linz[['Unnamed: 1', 'Unnamed: 2', 'Unnamed: 3', 'Unnamed: 4']].dropna()
 
-df_linz_params = df_linz_params[
-    df_linz_params.apply(lambda row: row.sum() >= 98, axis=1)
-]
-
-print("len(df_linz) =", len(df_linz))
-print("len(df_linz_params) nach dropna/filter =", len(df_linz_params))
-print(df_linz_params.head(10))
-
-
-df_parameters['Herkunft'] = df.loc[df_parameters.index, 'Unnamed: 5'].values
-df_parameters['Index'] = df.loc[df_parameters.index, 'Unnamed: 6'].values
 
 
 df_linz_params = df_linz_params.astype(float).round().astype(int)
