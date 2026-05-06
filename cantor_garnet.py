@@ -19,6 +19,8 @@ st.title("Cantor Diagram – Garnet System")
 uploaded_file = st.file_uploader(
     "Upload Excel file with Alm / Spe / Pyr / Gro columns",
     type=["xlsx"]
+    if uploaded_file is None:
+    st.stop()
 )
 
 convex_hulls_file_4 = "data/convex_hull_amphibolites_general.xlsx"
@@ -215,6 +217,22 @@ if uploaded_file is not None:
     # use uploaded data
     df_parameters = df_uploaded.copy()
 
+# use uploaded data
+df_parameters = df_uploaded.copy()
+
+# remove invalid rows
+df_parameters = df_parameters.dropna()
+
+df_parameters = df_parameters[
+    df_parameters.apply(
+        lambda row: row.sum() >= 98,
+        axis=1
+    )
+]
+
+
+
+    
     # optional: second dataset empty
     df_linz_params = pd.DataFrame(
         columns=[
@@ -228,7 +246,9 @@ if uploaded_file is not None:
 
 
 
-df_linz_params = df_linz_params.astype(float).round().astype(int)
+if not df_linz_params.empty:
+    df_linz_params = df_linz_params.astype(float).round().astype(int)
+    df_linz_params = df_linz_params.apply(normalize_to_100_LRM, axis=1)
 
 df_linz_params = df_linz_params.apply(normalize_to_100_LRM, axis=1)
 
@@ -276,21 +296,6 @@ for file_path in ordered_hulls:
     hull_name = legend_mapping.get(file_path, file_path.split("\\")[-1].split(".")[0])
     legende_text += f'<span style="color:{color};">■</span> {hull_name}<br>'
 
-# Mean values (centers) of provenance groups
-mean_fields = (
-    df_parameters
-    .groupby("Herkunft")[["Unnamed: 1", "Unnamed: 2", "Unnamed: 3", "Unnamed: 4"]]
-    .mean()
-    .rename(columns={
-        "Unnamed: 1": "Alm",
-        "Unnamed: 2": "Spe",
-        "Unnamed: 3": "Pyr",
-        "Unnamed: 4": "Gro"
-    })
-)
-
-print("\n=== Mean values of provenance groups calculated from chemical data) ===")
-print(mean_fields)
 
 # List to group points by origin and rectangle (AB)
 grouped_points = {}
@@ -394,9 +399,12 @@ plot_imported_hulls_with_file_colors(grouped_hulls_combined, color_mapping_files
 
 #  DAS HIER FEHLT
 
-df_linz_params['Ratio'] = df_linz_params['Unnamed: 1'] / (
-    df_linz_params['Unnamed: 1'] + df_linz_params['Unnamed: 2']
-)
+if not df_linz_params.empty:
+    df_linz_params['Ratio'] = (
+        df_linz_params['Unnamed: 1']
+        /
+        (df_linz_params['Unnamed: 1'] + df_linz_params['Unnamed: 2'])
+    )
 
 # Calculate the ratio for color coding
 df_parameters['Ratio'] = df_parameters['Unnamed: 1'] / (df_parameters['Unnamed: 1'] + df_parameters['Unnamed: 2'])
@@ -763,23 +771,6 @@ def classify_dataset(df_input, means, sigmas):
 
     return df_input
 
-from scipy.spatial.distance import cdist
-
-# Extract chemical data (Alm, Spe, Pyr, Gro)
-X = df_parameters[["Unnamed: 1", "Unnamed: 2", "Unnamed: 3", "Unnamed: 4"]].values
-Y = mean_fields[["Alm", "Spe", "Pyr", "Gro"]].values
-
-# Compute distance matrix
-dist_matrix = cdist(X, Y)
-
-# Index of the nearest provenance group
-closest_idx = np.argmin(dist_matrix, axis=1)
-df_parameters["Nearest_Field"] = mean_fields.index[closest_idx]
-df_parameters["Distance"] = dist_matrix[np.arange(len(X)), closest_idx]
-
-# Show sample classification
-print("\n=== Beispielhafte Klassifikation (erste 20 Zeilen) ===")
-print(df_parameters[["Herkunft", "Nearest_Field", "Distance"]].head(20))
 
 
 from scipy.stats import chi2
@@ -826,7 +817,12 @@ df_linz_params = classify_dataset(df_linz_params, means, sigmas) # LMF
 
 # Summary
 summary_pf = df_parameters["Nearest_Subfield_Mahalanobis"].value_counts()
-summary_lmf = df_linz_params["Nearest_Subfield_Mahalanobis"].value_counts()
+if not df_linz_params.empty:
+    summary_lmf = df_linz_params["Nearest_Subfield_Mahalanobis"].value_counts()
+    summary_lmf_pct = (summary_lmf / len(df_linz_params) * 100).round(1)
+else:
+    summary_lmf = pd.Series(dtype=float)
+    summary_lmf_pct = pd.Series(dtype=float)
 
 summary_pf_pct = (summary_pf / len(df_parameters) * 100).round(1)
 summary_lmf_pct = (summary_lmf / len(df_linz_params) * 100).round(1)
@@ -928,56 +924,11 @@ fig.add_shape(
 
 st.plotly_chart(fig, use_container_width=True)
 
-#        EXPORT SECTION (HTML / PNG / TIFF) — GARNET SCRIPT
+img_bytes = fig.to_image(format="png")
 
-import os
-from playwright.sync_api import sync_playwright
-from PIL import Image
-
-# Determine the directory where this script is located
-base_dir = os.path.dirname(os.path.abspath(__file__))
-
-# Create export directory (if not exists)
-export_dir = os.path.join(base_dir, "exports")
-os.makedirs(export_dir, exist_ok=True)
-
-# UNIQUE FILENAMES FOR THIS SCRIPT 
-png_path  = os.path.join(export_dir, "cantor_export_garnet_system.png")
-tiff_path = os.path.join(export_dir, "cantor_export_garnet_system.tiff")
-html_output = os.path.join(export_dir, "cantor_export_garnet_system.html")
-
-#Export HTML version of the figure 
-fig.write_html(html_output, include_plotlyjs="cdn", full_html=True)
-
-# Convert file path to a local browser URL
-html_path = "file:///" + html_output.replace("\\", "/")
-
-# Create high-resolution PNG using Playwright 
-def export_highres_png():
-    print("")
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        page = browser.new_page(
-            viewport={"width": 2260, "height": 1210, "device_scale_factor": 2}
-        )
-        page.goto(html_path)
-        page.wait_for_timeout(800)  
-        page.screenshot(path=png_path, full_page=True)
-        browser.close()
-    print(" PNG gespeichert unter:", png_path)
-
-#  Convert PNG to TIFF with 400 dpi 
-def convert_png_to_tiff_with_dpi(png_path, tiff_path, dpi=(400, 400)):
-    print(" Konvertiere PNG → TIFF (400 dpi) ...")
-    if os.path.exists(png_path):
-        img = Image.open(png_path)
-        img.save(tiff_path, dpi=dpi)
-        print(" TIFF gespeichert unter:", tiff_path)
-    else:
-        print(" PNG nicht gefunden – TIFF konnte nicht erzeugt werden:", png_path)
-
-# Execute export sequence 
-export_highres_png()
-convert_png_to_tiff_with_dpi(png_path, tiff_path)
-
-print("\n EXPORT KOMPLETT – Dateien gespeichert in:", export_dir)
+st.download_button(
+    label="Download PNG",
+    data=img_bytes,
+    file_name="cantor_diagram.png",
+    mime="image/png"
+)
