@@ -233,16 +233,15 @@ df_parameters = df_parameters[
 
 
 
-    
-    # optional: second dataset empty
-    df_linz_params = pd.DataFrame(
-        columns=[
-            "Unnamed: 1",
-            "Unnamed: 2",
-            "Unnamed: 3",
-            "Unnamed: 4"
-        ]
-    )
+ # optional: second dataset empty
+df_linz_params = pd.DataFrame(
+    columns=[
+        "Unnamed: 1",
+        "Unnamed: 2",
+        "Unnamed: 3",
+        "Unnamed: 4"
+    ]
+)
 
 
 
