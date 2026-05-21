@@ -813,8 +813,7 @@ sigmas = (subfield_sigmas_raw
           [["Alm","Spe","Pyr","Gro"]])
 
 # 
-df_parameters = classify_dataset(df_parameters, means, sigmas)   # PF
-df_linz_params = classify_dataset(df_linz_params, means, sigmas) # LMF
+df_parameters = classify_dataset(df_parameters, means, sigmas)
 
 
 # Classification using Mahalanobis (diagonal covariance)
@@ -852,7 +851,7 @@ print("Points cols: ['Alm','Spe','Pyr','Gro']")
 legend_text = (
     "<span style='font-size:45px; font-weight:bold;'>Garnet Provenance Groups</span><br>"
     "<span style='font-size:34px; font-style:italic;'>Classification based on Mahalanobis distance</span><br><br>"
-    "<span style='font-size:30px;'>Symbols: circles = mica schist (MS) Pernegg; diamonds = Linz–Melk Formation (LMF)</span><br><br>"
+    f"<span style='font-size:30px;'>Locality: {df_parameters['Locality'].iloc[0] if 'Locality' in df_parameters.columns else 'not specified'}</span><br><br>"
 )
 
 for file_path in ordered_hulls:
@@ -869,8 +868,7 @@ for file_path in ordered_hulls:
         f'<span style="color:{color}; font-size:62px;">■</span> '
         f'<span style="font-size:35px; font-weight:bold;">{hull_name}</span> '
         f'<span style="font-size:30px;">'
-        f'MS Pernegg: {int(count_pf)} points ({pct_pf:.1f}%) / '
-        f'LMF: {int(count_lmf)} points ({pct_lmf:.1f}%)'
+        f'{int(count_pf)} points ({pct_pf:.1f}%)'
         f'</span><br>'
     )
 
