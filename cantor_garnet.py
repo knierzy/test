@@ -214,6 +214,18 @@ locality_col = st.selectbox(
     ["None"] + columns
 )
 
+colorbar_choice = st.selectbox(
+    "Select Color Scale",
+    [
+        "Plasma",
+        "Viridis",
+        "Turbo",
+        "Inferno",
+        "Cividis",
+        "RdYlBu",
+        "Custom"
+    ]
+)
     
 df_parameters = pd.DataFrame({
     "Alm": df_uploaded[alm_col],
@@ -424,6 +436,10 @@ custom_colorscale = [
     [1.0,  "#FF4040"]    
 ]
 
+if colorbar_choice == "Custom":
+    selected_colorscale = custom_colorscale
+else:
+    selected_colorscale = colorbar_choice
 
 # List to store values for the color legend
 x_values, y_values, color_values = [], [], []
@@ -497,7 +513,7 @@ fig.add_trace(go.Scatter(
         symbol="circle",
         size=18,
         color=ratios[mask_circle],
-        colorscale="Plasma",
+        colorscale=selected_colorscale,
         cmin=0,
         cmax=1,
         coloraxis="coloraxis",
@@ -532,7 +548,7 @@ fig.add_trace(go.Scatter(
         symbol="circle",
         size=1,
         color=ratios[mask_circle],
-        colorscale="Plasma",
+        colorscale=selected_colorscale,
         cmin=0,
         cmax=1,
         line=dict(color="black", width=1)
@@ -567,7 +583,7 @@ fig.add_trace(go.Scatter(
         symbol="diamond",
         size=21,
         color=ratios[mask_cross],
-        colorscale="Plasma",
+        colorscale=selected_colorscale,
         cmin=0,
         cmax=1,
         coloraxis="coloraxis",
@@ -585,7 +601,7 @@ fig.add_trace(go.Scatter(
         symbol="diamond",
         size=18,
         color=ratios[mask_cross],
-        colorscale="Plasma_r",
+        colorscale=selected_colorscale,
         cmin=0,
         cmax=1,
         coloraxis="coloraxis",
@@ -620,7 +636,7 @@ fig.add_trace(go.Scatter(
         symbol="diamond",
         size=1,
         color=ratios[mask_cross],
-        colorscale="Plasma",
+        colorscale=selected_colorscale,
         cmin=0,
         cmax=1,
         line=dict(color="black", width=1)
@@ -648,7 +664,7 @@ fig.add_trace(go.Scatter(
 
 fig.update_layout(
     coloraxis=dict(
-        colorscale="Plasma",
+        colorscale=selected_colorscale,
         cmin=0,
         cmax=1,
         colorbar=dict(
