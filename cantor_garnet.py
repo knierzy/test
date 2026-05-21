@@ -767,7 +767,7 @@ fig.add_shape(
 )
 
 def classify_dataset(df_input, means, sigmas):
-    X_pts = df_input[["Alm","Spe","Pyr","Gro"]].to_numpy()
+    X_pts = df_input[["Alm","Pyr","Gro","Spe"]].to_numpy()
 
     labels = []
     d_min  = []
@@ -798,36 +798,155 @@ def classify_dataset(df_input, means, sigmas):
 from scipy.stats import chi2
 import numpy as np
 
+# =========================================================
+# SUBFIELD MEANS
+# Reihenfolge IMMER:
+# Alm, Pyr, Gro, Spe
+# =========================================================
 
-#  Subfield means (provided as alm,pyr,gro,sp)
 subfield_means_raw = pd.DataFrame({
-    "alm": [65.66982555, 54.31709145, 44.23111848, 48.07424294, 50.65111941, 23.87808719, 55.9267222, 21.02162502],
-    "pyr": [12.21280849, 33.69541824, 31.52675381, 3.214631984, 6.044688795, 57.81881319, 9.93239652, 3.069200646],
-    "gro": [12.932808, 10.07050389, 23.08000919, 22.67389225, 2.962742713, 17.48481604, 24.99704974, 64.92615389],
-    "sp":  [9.18931335, 1.921986915, 1.177650051, 27.99386213, 40.3362223, 0.812181278, 9.156153933, 10.98302044]
+    "alm": [
+        65.66982555,
+        54.31709145,
+        44.23111848,
+        48.07424294,
+        50.65111941,
+        23.87808719,
+        55.9267222,
+        21.02162502
+    ],
+
+    "pyr": [
+        12.21280849,
+        33.69541824,
+        31.52675381,
+        3.214631984,
+        6.044688795,
+        57.81881319,
+        9.93239652,
+        3.069200646
+    ],
+
+    "gro": [
+        12.932808,
+        10.07050389,
+        23.08000919,
+        22.67389225,
+        2.962742713,
+        17.48481604,
+        24.99704974,
+        64.92615389
+    ],
+
+    "sp": [
+        9.18931335,
+        1.921986915,
+        1.177650051,
+        27.99386213,
+        40.3362223,
+        0.812181278,
+        9.156153933,
+        10.98302044
+    ]
+
 }, index=[
-    "Amphibolites", "Granulites", "Eclogites", "Greenschists",
-    "Granites & Pegmatites", "Ultramafic rocks", "Blueschists", "Calc-silicate rocks"
+    "Amphibolites",
+    "Granulites",
+    "Eclogites",
+    "Greenschists",
+    "Granites & Pegmatites",
+    "Ultramafic rocks",
+    "Blueschists",
+    "Calc-silicate rocks"
 ])
 
-# Subfield standard deviations (provided as alm,pyr,gro,sp)
+# =========================================================
+# SUBFIELD STANDARD DEVIATIONS
+# =========================================================
+
 subfield_sigmas_raw = pd.DataFrame({
-    "alm": [10.34841545, 12.29476235, 12.67775939, 17.88439765, 14.35396254, 8.963328014, 11.23642444, 21.2594703],
-    "pyr": [8.402774083, 14.64088125, 12.21618211, 2.160177633, 5.404302193, 15.99899131, 7.608415516, 2.57929375],
-    "gro": [9.198543982, 8.220985049, 8.401915528, 9.018942259, 1.638148843, 13.22167668, 5.837586628, 30.103043],
-    "sp":  [10.56094471, 1.610341276, 0.825854952, 21.805533, 17.31566399, 0.575505324, 13.55642173, 14.93862155]
+
+    "alm": [
+        10.34841545,
+        12.29476235,
+        12.67775939,
+        17.88439765,
+        14.35396254,
+        8.963328014,
+        11.23642444,
+        21.2594703
+    ],
+
+    "pyr": [
+        8.402774083,
+        14.64088125,
+        12.21618211,
+        2.160177633,
+        5.404302193,
+        15.99899131,
+        7.608415516,
+        2.57929375
+    ],
+
+    "gro": [
+        9.198543982,
+        8.220985049,
+        8.401915528,
+        9.018942259,
+        1.638148843,
+        13.22167668,
+        5.837586628,
+        30.103043
+    ],
+
+    "sp": [
+        10.56094471,
+        1.610341276,
+        0.825854952,
+        21.805533,
+        17.31566399,
+        0.575505324,
+        13.55642173,
+        14.93862155
+    ]
+
 }, index=subfield_means_raw.index)
 
-# Convert to order: Alm, Spe, Pyr, Gro ---
-# # Mapping: alm->Alm, sp->Spe, pyr->Pyr, gro->Gro
-means = (subfield_means_raw
-         .rename(columns={"alm":"Alm","sp":"Spe","pyr":"Pyr","gro":"Gro"})
-         [["Alm","Spe","Pyr","Gro"]])
+# =========================================================
+# KORREKTE SPALTENREIHENFOLGE
+# Alm, Pyr, Gro, Spe
+# =========================================================
 
-sigmas = (subfield_sigmas_raw
-          .rename(columns={"alm":"Alm","sp":"Spe","pyr":"Pyr","gro":"Gro"})
-          [["Alm","Spe","Pyr","Gro"]])
+means = (
+    subfield_means_raw
+    .rename(columns={
+        "alm": "Alm",
+        "pyr": "Pyr",
+        "gro": "Gro",
+        "sp":  "Spe"
+    })
+    [["Alm", "Pyr", "Gro", "Spe"]]
+)
 
+sigmas = (
+    subfield_sigmas_raw
+    .rename(columns={
+        "alm": "Alm",
+        "pyr": "Pyr",
+        "gro": "Gro",
+        "sp":  "Spe"
+    })
+    [["Alm", "Pyr", "Gro", "Spe"]]
+)
+
+# =========================================================
+# DIAGNOSTIC CHECK
+# =========================================================
+
+print("\nCheck Spalten-Reihenfolge:")
+print("Means cols:", list(means.columns))
+print("Sigmas cols:", list(sigmas.columns))
+print("Points cols: ['Alm','Pyr','Gro','Spe']")
 # 
 df_parameters = classify_dataset(df_parameters, means, sigmas)
 
