@@ -86,26 +86,19 @@ fig = go.Figure()
 
 # normalization LRM
 def normalize_to_100_LRM(row):
-    cols = ['Unnamed: 1', 'Unnamed: 2', 'Unnamed: 3', 'Unnamed: 4']
+    cols = ['Alm', 'Pyr', 'Gro', 'Spe']
     values = row[cols].astype(float).to_numpy()
 
-   
     ints = np.floor(values).astype(int)
-
- 
     remainders = values - ints
-
-  
     missing = 100 - ints.sum()
 
     if missing > 0:
-    
         order = np.argsort(-remainders)
         for i in range(missing):
             ints[order[i]] += 1
 
     elif missing < 0:
-      
         order = np.argsort(remainders)
         for i in range(-missing):
             ints[order[i]] -= 1
