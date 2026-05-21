@@ -703,7 +703,7 @@ for y in y_values:
     fig.add_shape(
         type="line",
         x0=0, #
-        x1=max(df_parameters['Unnamed: 3']) + rechtecke[-1][0] + rechtecke[-1][1],  # Ending point of the line on the X-axis (right edge)
+        x1=max(df_parameters['Gro']) + rechtecke[-1][0] + rechtecke[-1][1],  # Ending point of the line on the X-axis (right edge)
         y0=y,
         y1=y,
         line=dict(
