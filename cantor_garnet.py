@@ -232,18 +232,10 @@ df_parameters = pd.DataFrame({
 if locality_col != "None":
     df_parameters["Locality"] = df_uploaded[locality_col]
 
-    # use uploaded data
-    df_parameters = df_uploaded.copy()
-
-# use uploaded data
-df_parameters = df_uploaded.copy()
-
-# remove invalid rows
-df_parameters = df_parameters.dropna()
 
 df_parameters = df_parameters[
     df_parameters.apply(
-        lambda row: row.sum() >= 98,
+        lambda row: row[['Alm','Pyr','Gro','Spe']].sum() >= 98,
         axis=1
     )
 ]
@@ -277,7 +269,7 @@ df_parameters = df_parameters.apply(normalize_to_100_LRM, axis=1)
 
 
 # Calculate AB (A + B) for the y-position
-df_parameters['AB'] = df_parameters['Unnamed: 1'] + df_parameters['Unnamed: 2']
+df_parameters['AB'] = df_parameters['Alm'] + df_parameters['Pyr']
 
 
 # Calculate the y-position based on AB and B
@@ -424,7 +416,11 @@ if not df_linz_params.empty:
     )
 
 # Calculate the ratio for color coding
-df_parameters['Ratio'] = df_parameters['Unnamed: 1'] / (df_parameters['Unnamed: 1'] + df_parameters['Unnamed: 2'])
+df_parameters['Ratio'] = (
+    df_parameters['Alm']
+    /
+    (df_parameters['Alm'] + df_parameters['Pyr'])
+)
 
 custom_colorscale = [
     [0.0,  "#00007F"],   
@@ -442,9 +438,9 @@ symbols = []
 
 # === Pernegg ===
 for idx, row in df_parameters.iterrows():
-    a = row['Unnamed: 1']
-    b = row['Unnamed: 2']
-    c = row['Unnamed: 3']
+    a = row['Alm']
+    b = row['Pyr']
+    c = row['Gro']
     ab_value = row['AB']
     ratio = row['Ratio']
 
@@ -762,7 +758,7 @@ fig.add_shape(
 )
 
 def classify_dataset(df_input, means, sigmas):
-    X_pts = df_input[["Unnamed: 1","Unnamed: 2","Unnamed: 3","Unnamed: 4"]].to_numpy()
+    X_pts = df_input[["Alm","Spe","Pyr","Gro"]].to_numpy()
 
     labels = []
     d_min  = []
