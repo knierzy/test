@@ -207,13 +207,30 @@ if uploaded_file is not None:
     # uploaded Excel file
     df_uploaded = pd.read_excel(uploaded_file)
 
-    # rename columns to internal format
-    df_uploaded.columns = [
-        "Unnamed: 1",
-        "Unnamed: 2",
-        "Unnamed: 3",
-        "Unnamed: 4"
-    ]
+st.subheader("Column Mapping")
+
+columns = df_uploaded.columns.tolist()
+
+alm_col = st.selectbox("Select Almandine column", columns)
+pyr_col = st.selectbox("Select Pyrope column", columns)
+gro_col = st.selectbox("Select Grossular column", columns)
+spe_col = st.selectbox("Select Spessartine column", columns)
+
+locality_col = st.selectbox(
+    "Select Locality column (optional)",
+    ["None"] + columns
+)
+
+    
+df_parameters = pd.DataFrame({
+    "Alm": df_uploaded[alm_col],
+    "Pyr": df_uploaded[pyr_col],
+    "Gro": df_uploaded[gro_col],
+    "Spe": df_uploaded[spe_col]
+})
+
+if locality_col != "None":
+    df_parameters["Locality"] = df_uploaded[locality_col]
 
     # use uploaded data
     df_parameters = df_uploaded.copy()
