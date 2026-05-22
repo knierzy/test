@@ -234,6 +234,9 @@ df_parameters = pd.DataFrame({
     "Spe": df_uploaded[spe_col]
 })
 
+# Reihenfolge explizit fixieren
+df_parameters = df_parameters[["Alm","Pyr","Gro","Spe"]]
+
 if locality_col != "None":
     df_parameters["Locality"] = df_uploaded[locality_col]
 
