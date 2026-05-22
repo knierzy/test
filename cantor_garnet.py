@@ -277,7 +277,7 @@ df_parameters = df_parameters.apply(normalize_to_100_LRM, axis=1)
 
 
 # Calculate AB (A + B) for the y-position
-df_parameters['AB'] = df_parameters['Alm'] + df_parameters['Pyr']
+df_parameters['AB'] = df_parameters['Alm'] + df_parameters['Spe']
 
 
 # Calculate the y-position based on AB and B
@@ -451,7 +451,7 @@ symbols = []
 # === Pernegg ===
 for idx, row in df_parameters.iterrows():
     a = row['Alm']
-    b = row['Pyr']
+    b = row['Spe']
     c = row['Gro']
     ab_value = row['AB']
     ratio = row['Ratio']
