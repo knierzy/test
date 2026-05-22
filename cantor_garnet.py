@@ -806,6 +806,48 @@ fig.add_shape(
 )
 
 def classify_dataset(df_input, means, sigmas):
+
+    X_pts = df_input[["Alm","Pyr","Gro","Spe"]].to_numpy()
+
+    labels = []
+    d_min  = []
+
+    sigmas_safe = sigmas.clip(lower=0.5)
+    invcovs = {
+        k: np.diag(1.0/(sigmas_safe.loc[k].to_numpy()**2))
+        for k in means.index
+    }
+
+    mus = {
+        k: means.loc[k].to_numpy()
+        for k in means.index
+    }
+
+    for x in X_pts:
+
+        best_label = None
+        best_d = np.inf
+
+        for k in means.index:
+
+            mu = mus[k]
+            VI = invcovs[k]
+
+            d2 = (x-mu) @ VI @ (x-mu).T
+
+            if d2 < best_d:
+                best_d = d2
+                best_label = k
+
+        labels.append(best_label)
+        d_min.append(np.sqrt(best_d))
+
+    df_input["Nearest_Subfield"] = labels
+    df_input["Mahalanobis_Distance"] = d_min
+
+    return df_input
+
+
 def classify_dataset_logeuclidean(df_input, means):
 
     X_pts = df_input[["Alm","Pyr","Gro","Spe"]].to_numpy()
@@ -823,7 +865,6 @@ def classify_dataset_logeuclidean(df_input, means):
         best_label = None
         best_d = np.inf
 
-        # log-transform point
         x_log = np.log(x + 1)
 
         for k in means.index:
