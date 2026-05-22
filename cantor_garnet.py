@@ -250,15 +250,8 @@ colorbar_choice = st.selectbox(
     ]
 )
     
-df_parameters = pd.DataFrame({
-    "Alm": df_uploaded[alm_col],
-    "Pyr": df_uploaded[pyr_col],
-    "Gro": df_uploaded[gro_col],
-    "Spe": df_uploaded[spe_col]
-})
 
-if locality_col != "None":
-    df_parameters["Locality"] = df_uploaded[locality_col]
+
 
 
 df_parameters = df_parameters[
