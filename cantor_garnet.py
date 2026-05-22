@@ -200,19 +200,42 @@ if uploaded_file is not None:
     # uploaded Excel file
     df_uploaded = pd.read_excel(uploaded_file)
 
-st.subheader("Column Mapping")
+# =========================================================
+# FIXE SPALTENREIHENFOLGE
+# (analog zu Skript 2)
+#
+# Spalte 1 = Alm
+# Spalte 2 = Pyr
+# Spalte 3 = Gro
+# Spalte 4 = Spe
+# Spalte 5 = Locality
+#
+# =========================================================
 
-columns = df_uploaded.columns.tolist()
+if df_uploaded.shape[1] < 4:
+    st.error("Excel file must contain at least 4 columns.")
+    st.stop()
 
-alm_col = st.selectbox("Select Almandine column", columns)
-pyr_col = st.selectbox("Select Pyrope column", columns)
-gro_col = st.selectbox("Select Grossular column", columns)
-spe_col = st.selectbox("Select Spessartine column", columns)
+df_parameters = pd.DataFrame({
 
-locality_col = st.selectbox(
-    "Select Locality column (optional)",
-    ["None"] + columns
-)
+    "Alm": df_uploaded.iloc[:, 0],
+    "Pyr": df_uploaded.iloc[:, 1],
+    "Gro": df_uploaded.iloc[:, 2],
+    "Spe": df_uploaded.iloc[:, 3]
+
+})
+
+# optionale Locality-Spalte
+if df_uploaded.shape[1] >= 5:
+    df_parameters["Locality"] = df_uploaded.iloc[:, 4]
+
+# Reihenfolge explizit fixieren
+ordered_cols = ["Alm", "Pyr", "Gro", "Spe"]
+
+if "Locality" in df_parameters.columns:
+    ordered_cols.append("Locality")
+
+df_parameters = df_parameters[ordered_cols]
 
 colorbar_choice = st.selectbox(
     "Select Color Scale",
@@ -233,9 +256,6 @@ df_parameters = pd.DataFrame({
     "Gro": df_uploaded[gro_col],
     "Spe": df_uploaded[spe_col]
 })
-
-# Reihenfolge explizit fixieren
-df_parameters = df_parameters[["Alm","Pyr","Gro","Spe"]]
 
 if locality_col != "None":
     df_parameters["Locality"] = df_uploaded[locality_col]
@@ -277,7 +297,7 @@ df_parameters = df_parameters.apply(normalize_to_100_LRM, axis=1)
 
 
 # Calculate AB (A + B) for the y-position
-df_parameters['AB'] = df_parameters['Alm'] + df_parameters['Spe']
+df_parameters['AB'] = df_parameters['Alm'] + df_parameters['Pyr']
 
 
 # Calculate the y-position based on AB and B
@@ -451,7 +471,7 @@ symbols = []
 # === Pernegg ===
 for idx, row in df_parameters.iterrows():
     a = row['Alm']
-    b = row['Spe']
+    b = row['Pyr']
     c = row['Gro']
     ab_value = row['AB']
     ratio = row['Ratio']
@@ -984,7 +1004,7 @@ print(pd.DataFrame({
 print("\nCheck Spalten-Reihenfolge:")
 print("Means cols:", list(means.columns))
 print("Sigmas cols:", list(sigmas.columns))
-print("Points cols: ['Alm','Pyr','Gro','Spe']")
+print("Points cols: ['Alm','Spe','Pyr','Gro']")
 
 legend_text = (
     "<span style='font-size:45px; font-weight:bold;'>Garnet Provenance Groups</span><br>"
