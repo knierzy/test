@@ -981,7 +981,7 @@ print(pd.DataFrame({
 print("\nCheck Spalten-Reihenfolge:")
 print("Means cols:", list(means.columns))
 print("Sigmas cols:", list(sigmas.columns))
-print("Points cols: ['Alm','Spe','Pyr','Gro']")
+print("Points cols: ['Alm','Pyr','Gro','Spe']")
 
 legend_text = (
     "<span style='font-size:45px; font-weight:bold;'>Garnet Provenance Groups</span><br>"
