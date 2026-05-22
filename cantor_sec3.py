@@ -219,14 +219,9 @@ if df_uploaded.shape[1] < 4:
 df_parameters = pd.DataFrame({
 
     "Alm": df_uploaded.iloc[:, 0],
-
-    # historisches Cantor-Diagramm
-    "Pyr": df_uploaded.iloc[:, 3],
-
+    "Pyr": df_uploaded.iloc[:, 1],
     "Gro": df_uploaded.iloc[:, 2],
-
-    # historisches Cantor-Diagramm
-    "Spe": df_uploaded.iloc[:, 1]
+    "Spe": df_uploaded.iloc[:, 3]
 
 })
 
@@ -942,9 +937,9 @@ means = (
     subfield_means_raw
     .rename(columns={
         "alm": "Alm",
-        "sp":  "Pyr",
+        "pyr": "Pyr",
         "gro": "Gro",
-        "pyr": "Spe"
+        "sp":  "Spe"
     })
     [["Alm", "Pyr", "Gro", "Spe"]]
 )
@@ -953,9 +948,9 @@ sigmas = (
     subfield_sigmas_raw
     .rename(columns={
         "alm": "Alm",
-        "sp":  "Pyr",
+        "pyr": "Pyr",
         "gro": "Gro",
-        "pyr": "Spe"
+        "sp":  "Spe"
     })
     [["Alm", "Pyr", "Gro", "Spe"]]
 )
@@ -969,7 +964,35 @@ print("Means cols:", list(means.columns))
 print("Sigmas cols:", list(sigmas.columns))
 print("Points cols: ['Alm','Pyr','Gro','Spe']")
 # 
-df_parameters = classify_dataset(df_parameters, means, sigmas)
+
+# =========================================================
+# SEPARATES DATAFRAME NUR FÜR MAHALANOBIS
+# =========================================================
+
+df_maha = pd.DataFrame({
+
+    # Alm bleibt
+    "Alm": df_parameters["Alm"],
+
+    # tatsächlicher Pyrope = bisher Gro
+    "Pyr": df_parameters["Gro"],
+
+    # tatsächlicher Grossular = bisher Spe
+    "Gro": df_parameters["Spe"],
+
+    # tatsächlicher Spessartine = bisher Pyr
+    "Spe": df_parameters["Pyr"]
+
+})
+
+
+df_maha = classify_dataset(df_maha, means, sigmas)
+
+df_parameters["Nearest_Subfield_Mahalanobis"] = \
+    df_maha["Nearest_Subfield_Mahalanobis"]
+
+df_parameters["Mahalanobis_Distance"] = \
+    df_maha["Mahalanobis_Distance"]
 
 
 # Classification using Mahalanobis (diagonal covariance)
