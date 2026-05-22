@@ -1123,6 +1123,18 @@ fig.add_shape(
 
 st.plotly_chart(fig, use_container_width=True)
 
+
+fig.update_layout(
+    margin=dict(
+        l=140,   # links
+        r=80,    # rechts
+        t=20,    # oben
+        b=120    # unten
+    )
+)
+
+
+
 # ==========================================
 # OPTIONAL PNG EXPORT
 # ==========================================
