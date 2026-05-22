@@ -543,7 +543,7 @@ fig.add_trace(go.Scatter(
     mode="markers",
     marker=dict(
         symbol="circle",
-        size=halo_size,,
+        size=halo_size,
         color=ratios[mask_circle],
         colorscale=selected_colorscale,
         cmin=0,
@@ -595,7 +595,7 @@ fig.add_trace(go.Scatter(
     mode="markers",
     marker=dict(
         symbol="circle",
-        size=center_size,,
+        size=center_size,
         color="black"
     ),
     hoverinfo="skip",
