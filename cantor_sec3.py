@@ -251,7 +251,23 @@ colorbar_choice = st.selectbox(
 )
     
 
+# =====================================
+# POINT SIZE SLIDER
+# =====================================
 
+point_size = st.slider(
+    "Select Point Size",
+    min_value=5,
+    max_value=40,
+    value=20,
+    step=1
+)
+
+outer_size = point_size
+halo_size = point_size - 2
+cutout_size = point_size * 0.08
+inner_size = point_size * 0.08
+center_size = point_size * 0.18
 
 
 df_parameters = df_parameters[
@@ -512,7 +528,7 @@ fig.add_trace(go.Scatter(
     mode="markers",
     marker=dict(
         symbol="circle",
-        size=20,
+        size=outer_size,
         color="rgba(0,0,0,0)",
         line=dict(color="black", width=4)
     ),
@@ -527,7 +543,7 @@ fig.add_trace(go.Scatter(
     mode="markers",
     marker=dict(
         symbol="circle",
-        size=18,
+        size=halo_size,
         color=ratios[mask_circle],
         colorscale=selected_colorscale,
         cmin=0,
@@ -547,7 +563,7 @@ fig.add_trace(go.Scatter(
     mode="markers",
     marker=dict(
         symbol="circle",
-        size=1,
+        size=cutout_size,
         color="white",
         line=dict(width=0)
     ),
@@ -562,7 +578,7 @@ fig.add_trace(go.Scatter(
     mode="markers",
     marker=dict(
         symbol="circle",
-        size=1,
+        size=inner_size,
         color=ratios[mask_circle],
         colorscale=selected_colorscale,
         cmin=0,
@@ -579,7 +595,7 @@ fig.add_trace(go.Scatter(
     mode="markers",
     marker=dict(
         symbol="circle",
-        size=3.5,
+        size=center_size,
         color="black"
     ),
     hoverinfo="skip",
