@@ -1131,8 +1131,8 @@ try:
 
     img_bytes = fig.to_image(
         format="png",
-        width=6000,
-        height=3200,
+        width=2260,
+        height=1210,
         scale=2
     )
 
