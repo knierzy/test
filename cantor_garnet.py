@@ -254,7 +254,8 @@ distance_method = st.selectbox(
     "Select Distance Metric",
     [
         "Mahalanobis",
-        "Log-Euclidean"
+        "Log-Euclidean",
+        "Aitchison"
     ]
 )
 
@@ -885,7 +886,55 @@ def classify_dataset_logeuclidean(df_input, means):
 
     return df_input
 
+def clr_transform(x):
 
+    x = np.asarray(x, dtype=float)
+
+    eps = 1e-6
+    x = x + eps
+
+    gm = np.exp(np.mean(np.log(x)))
+
+    return np.log(x / gm)
+
+
+def classify_dataset_aitchison(df_input, means):
+
+    X_pts = df_input[["Alm","Pyr","Gro","Spe"]].to_numpy()
+
+    labels = []
+    d_min = []
+
+    # CLR-transformierte Mittelwerte
+    mus_clr = {
+        k: clr_transform(means.loc[k].to_numpy())
+        for k in means.index
+    }
+
+    for x in X_pts:
+
+        x_clr = clr_transform(x)
+
+        best_label = None
+        best_d = np.inf
+
+        for k in means.index:
+
+            mu_clr = mus_clr[k]
+
+            d = np.linalg.norm(x_clr - mu_clr)
+
+            if d < best_d:
+                best_d = d
+                best_label = k
+
+        labels.append(best_label)
+        d_min.append(best_d)
+
+    df_input["Nearest_Subfield_Aitchison"] = labels
+    df_input["Aitchison_Distance"] = d_min
+
+    return df_input
 
 from scipy.stats import chi2
 import numpy as np
@@ -1072,7 +1121,8 @@ if distance_method == "Mahalanobis":
     df_parameters["Distance"] = \
         df_maha["Mahalanobis_Distance"]
 
-else:
+
+elif distance_method == "Log-Euclidean":
 
     df_maha = classify_dataset_logeuclidean(
         df_maha,
@@ -1085,6 +1135,20 @@ else:
     df_parameters["Distance"] = \
         df_maha["LogEuclidean_Distance"]
 
+
+elif distance_method == "Aitchison":
+
+    df_maha = classify_dataset_aitchison(
+        df_maha,
+        means
+    )
+
+    df_parameters["Nearest_Subfield"] = \
+        df_maha["Nearest_Subfield_Aitchison"]
+
+    df_parameters["Distance"] = \
+        df_maha["Aitchison_Distance"]
+    
 # Classification using Mahalanobis (diagonal covariance)
 
  
