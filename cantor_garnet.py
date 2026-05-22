@@ -942,9 +942,9 @@ means = (
     subfield_means_raw
     .rename(columns={
         "alm": "Alm",
-        "pyr": "Pyr",
+        "sp":  "Pyr",
         "gro": "Gro",
-        "sp":  "Spe"
+        "pyr": "Spe"
     })
     [["Alm", "Pyr", "Gro", "Spe"]]
 )
