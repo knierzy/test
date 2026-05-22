@@ -219,9 +219,14 @@ if df_uploaded.shape[1] < 4:
 df_parameters = pd.DataFrame({
 
     "Alm": df_uploaded.iloc[:, 0],
-    "Pyr": df_uploaded.iloc[:, 1],
+
+    # historisches Cantor-Diagramm
+    "Pyr": df_uploaded.iloc[:, 3],
+
     "Gro": df_uploaded.iloc[:, 2],
-    "Spe": df_uploaded.iloc[:, 3]
+
+    # historisches Cantor-Diagramm
+    "Spe": df_uploaded.iloc[:, 1]
 
 })
 
@@ -937,9 +942,9 @@ means = (
     subfield_means_raw
     .rename(columns={
         "alm": "Alm",
-        "pyr": "Pyr",
+        "sp":  "Pyr",
         "gro": "Gro",
-        "sp":  "Spe"
+        "pyr": "Spe"
     })
     [["Alm", "Pyr", "Gro", "Spe"]]
 )
@@ -948,9 +953,9 @@ sigmas = (
     subfield_sigmas_raw
     .rename(columns={
         "alm": "Alm",
-        "pyr": "Pyr",
+        "sp":  "Pyr",
         "gro": "Gro",
-        "sp":  "Spe"
+        "pyr": "Spe"
     })
     [["Alm", "Pyr", "Gro", "Spe"]]
 )
