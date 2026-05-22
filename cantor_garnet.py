@@ -249,7 +249,14 @@ colorbar_choice = st.selectbox(
         "Custom"
     ]
 )
-    
+
+distance_method = st.selectbox(
+    "Select Distance Metric",
+    [
+        "Mahalanobis",
+        "Log-Euclidean"
+    ]
+)
 
 # =====================================
 # POINT SIZE SLIDER
@@ -799,29 +806,41 @@ fig.add_shape(
 )
 
 def classify_dataset(df_input, means, sigmas):
+def classify_dataset_logeuclidean(df_input, means):
+
     X_pts = df_input[["Alm","Pyr","Gro","Spe"]].to_numpy()
 
     labels = []
-    d_min  = []
+    d_min = []
 
-    sigmas_safe = sigmas.clip(lower=0.5)
-    invcovs = {k: np.diag(1.0/(sigmas_safe.loc[k].to_numpy()**2)) for k in means.index}
-    mus     = {k: means.loc[k].to_numpy() for k in means.index}
+    mus = {
+        k: means.loc[k].to_numpy()
+        for k in means.index
+    }
 
     for x in X_pts:
-        best_label, best_d = None, np.inf
-        for k in means.index:
-            mu = mus[k]
-            VI = invcovs[k]
-            d2 = (x-mu) @ VI @ (x-mu).T
-            if d2 < best_d:
-                best_d = d2
-                best_label = k
-        labels.append(best_label)
-        d_min.append(np.sqrt(best_d))
 
-    df_input["Nearest_Subfield_Mahalanobis"] = labels
-    df_input["Mahalanobis_Distance"] = d_min
+        best_label = None
+        best_d = np.inf
+
+        # log-transform point
+        x_log = np.log(x + 1)
+
+        for k in means.index:
+
+            mu_log = np.log(mus[k] + 1)
+
+            d = np.linalg.norm(x_log - mu_log)
+
+            if d < best_d:
+                best_d = d
+                best_label = k
+
+        labels.append(best_label)
+        d_min.append(best_d)
+
+    df_input["Nearest_Subfield_LogEuclidean"] = labels
+    df_input["LogEuclidean_Distance"] = d_min
 
     return df_input
 
@@ -1002,23 +1021,37 @@ df_maha = pd.DataFrame({
 })
 
 
-df_maha = classify_dataset(df_maha, means, sigmas)
+if distance_method == "Mahalanobis":
 
-df_parameters["Nearest_Subfield_Mahalanobis"] = \
-    df_maha["Nearest_Subfield_Mahalanobis"]
+    df_maha = classify_dataset(df_maha, means, sigmas)
 
-df_parameters["Mahalanobis_Distance"] = \
-    df_maha["Mahalanobis_Distance"]
+    df_parameters["Nearest_Subfield"] = \
+        df_maha["Nearest_Subfield"]
 
+    df_parameters["Distance"] = \
+        df_maha["Mahalanobis_Distance"]
+
+else:
+
+    df_maha = classify_dataset_logeuclidean(
+        df_maha,
+        means
+    )
+
+    df_parameters["Nearest_Subfield"] = \
+        df_maha["Nearest_Subfield_LogEuclidean"]
+
+    df_parameters["Distance"] = \
+        df_maha["LogEuclidean_Distance"]
 
 # Classification using Mahalanobis (diagonal covariance)
 
  
 
 # Summary
-summary_pf = df_parameters["Nearest_Subfield_Mahalanobis"].value_counts()
+summary_pf = df_parameters["Nearest_Subfield"].value_counts()
 if not df_linz_params.empty:
-    summary_lmf = df_linz_params["Nearest_Subfield_Mahalanobis"].value_counts()
+    summary_lmf = df_linz_params["Nearest_Subfield"].value_counts()
     summary_lmf_pct = (summary_lmf / len(df_linz_params) * 100).round(1)
 else:
     summary_lmf = pd.Series(dtype=float)
