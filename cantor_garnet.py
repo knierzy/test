@@ -1123,11 +1123,29 @@ fig.add_shape(
 
 st.plotly_chart(fig, use_container_width=True)
 
-img_bytes = fig.to_image(format="png")
+# ==========================================
+# OPTIONAL PNG EXPORT
+# ==========================================
 
-st.download_button(
-    label="Download PNG",
-    data=img_bytes,
-    file_name="cantor_diagram.png",
-    mime="image/png"
-)
+try:
+
+    img_bytes = fig.to_image(
+        format="png",
+        width=6000,
+        height=3200,
+        scale=2
+    )
+
+    st.download_button(
+        label="Download PNG",
+        data=img_bytes,
+        file_name="cantor_diagram.png",
+        mime="image/png"
+    )
+
+except Exception as e:
+
+    st.warning(
+        "PNG export not available on Streamlit Cloud "
+        "(missing Chrome/Kaleido dependency)."
+    )
