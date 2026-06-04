@@ -138,13 +138,18 @@ def add_rechtecke_mit_farbverlauf(rechtecke, x_offset, spiegeln=False):
         grau_ende = 230
 
 
-        for step in range(gradient_steps):
-            # Calculate the gray value within an AB-rectangle
-            grau_wert = int(grau_start + (grau_ende - grau_start) * (step / (gradient_steps - 1)))
+   for step in range(gradient_steps):
 
-            # transparency variation for smoother shading
-            alpha = 0.8 - (0.6 * (step / (gradient_steps - 1)))
-            color = f'rgba({grau_wert}, {grau_wert}, {grau_wert}, {alpha})'
+       if gradient_steps == 1:
+        grau_wert = 215
+        alpha = 0.5
+       else:
+        grau_wert = int(
+            grau_start + (grau_ende - grau_start) * (step / (gradient_steps - 1))
+        )
+        alpha = 0.8 - (0.6 * (step / (gradient_steps - 1)))
+
+        color = f'rgba({grau_wert}, {grau_wert}, {grau_wert}, {alpha})'
 
             # determine coordinates for the gradient along the new x-axis (sum A + B)
             y_start = y_position + (step / gradient_steps) * hoehe
