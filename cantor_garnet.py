@@ -1258,7 +1258,7 @@ fig.add_shape(
 
 
 
-
+st.plotly_chart(fig, use_container_width=True)
 
 
 
@@ -1271,9 +1271,7 @@ fig.update_layout(
     )
 )
 
-fig.update_xaxes(layer="below traces")
-fig.update_yaxes(layer="below traces")
-st.plotly_chart(fig, use_container_width=True)
+
 # ==========================================
 # OPTIONAL PNG EXPORT
 # ==========================================
