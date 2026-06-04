@@ -121,25 +121,19 @@ def ensure_transparency(color, alpha=0.7):
         return f"rgba(0, 0, 0, {alpha})"
 
 
-# Add rectangles with color gradients along the new x-axis
 def add_rechtecke_mit_farbverlauf(rechtecke, x_offset, spiegeln=False):
     for i, (y_position, hoehe, label) in enumerate(rechtecke):
         breite = i + 1
-        gradient_steps = 10  # Number of steps in the color gradient
+        gradient_steps = 5 if i >= 90 else 10
 
-
-        grau_start = 200  # darker gray at the bottom
-        grau_ende = 230 # brighter gray at the top 
+        grau_start = 200
+        grau_ende = 230
 
         for step in range(gradient_steps):
-            # Calculate the gray value within an AB-rectangle
             grau_wert = int(grau_start + (grau_ende - grau_start) * (step / (gradient_steps - 1)))
-
-            # transparency variation for smoother shading
             alpha = 0.8 - (0.6 * (step / (gradient_steps - 1)))
             color = f'rgba({grau_wert}, {grau_wert}, {grau_wert}, {alpha})'
 
-            # determine coordinates for the gradient along the new x-axis (sum A + B)
             y_start = y_position + (step / gradient_steps) * hoehe
             y_end = y_position + ((step + 1) / gradient_steps) * hoehe
 
@@ -148,14 +142,13 @@ def add_rechtecke_mit_farbverlauf(rechtecke, x_offset, spiegeln=False):
             else:
                 x_start, x_end = x_offset, x_offset + breite
 
-            # add rectangle polygon for this gradient step
             fig.add_trace(go.Scatter(
                 x=[x_start, x_start, x_end, x_end, x_start],
                 y=[y_start, y_end, y_end, y_start, y_start],
                 fill="toself",
                 mode="lines",
                 fillcolor=color,
-                line=dict(color="gray", width=0)  
+                line=dict(color="gray", width=0)
             ))
 
         for x_pos in range(1, breite):
@@ -167,7 +160,6 @@ def add_rechtecke_mit_farbverlauf(rechtecke, x_offset, spiegeln=False):
                 line=dict(color="gray", width=2),
                 showlegend=False
             ))
-
 
 # === Create axis labels (GLOBAL, NOT inside function!) ===
 x_labels = {
@@ -737,7 +729,7 @@ plot_bgcolor="white",
             text="Pyrope (%) /// Grossular (%) = height rectangle <sub>ABCD</sub> − Pyrope (%)",
             font=dict(size=28, color="black", family="Arial Black")
         ),
-        range=[-1.3, 100],
+        range=[0, 100],
         constrain="domain",
         tickformat=".0f",
         dtick=10,
@@ -1194,13 +1186,10 @@ for file_path in ordered_hulls:
     count_pf = summary_pf.get(hull_name, 0)
     pct_pf = summary_pf_pct.get(hull_name, 0)
 
-    count_lmf = summary_lmf.get(hull_name, 0)
-    pct_lmf = summary_lmf_pct.get(hull_name, 0)
-
-    legend_text += (   #jetzt korrekt innerhalb der Schleife
-        f'<span style="color:{color}; font-size:62px;">■</span> '
-        f'<span style="font-size:35px; font-weight:bold;">{hull_name}</span> '
-        f'<span style="font-size:30px;">'
+    legend_text += (
+        f'<span style="color:{color}; font-size:42px; vertical-align:middle;">■</span> '
+        f'<span style="font-size:35px; font-weight:bold; vertical-align:middle;">{hull_name}</span> '
+        f'<span style="font-size:30px; vertical-align:middle;">'
         f'{int(count_pf)} points ({pct_pf:.1f}%)'
         f'</span><br>'
     )
@@ -1258,8 +1247,8 @@ fig.add_shape(
 
 
 
-
 st.plotly_chart(fig, use_container_width=True)
+
 
 
 fig.update_layout(
@@ -1270,7 +1259,6 @@ fig.update_layout(
         b=120    # unten
     )
 )
-
 
 
 # ==========================================
