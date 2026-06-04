@@ -123,14 +123,20 @@ def ensure_transparency(color, alpha=0.7):
 
 # Add rectangles with color gradients along the new x-axis
 def add_rechtecke_mit_farbverlauf(rechtecke, x_offset, spiegeln=False):
+
     for i, (y_position, hoehe, label) in enumerate(rechtecke):
+
         breite = i + 1
-       if i >= 95:
-    gradient_steps = 1
-else:
-    gradient_steps = 10
-        grau_start = 200  # darker gray at the bottom
-        grau_ende = 230 # brighter gray at the top 
+
+        # nur für die letzten Felder
+        if i >= 95:
+            gradient_steps = 1
+        else:
+            gradient_steps = 10
+
+        grau_start = 200
+        grau_ende = 230
+
 
         for step in range(gradient_steps):
             # Calculate the gray value within an AB-rectangle
