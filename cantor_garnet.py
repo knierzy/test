@@ -1197,13 +1197,13 @@ for file_path in ordered_hulls:
     count_lmf = summary_lmf.get(hull_name, 0)
     pct_lmf = summary_lmf_pct.get(hull_name, 0)
 
-legend_text += (
-    f'<span style="color:{color}; font-size:42px; vertical-align:middle;">■</span> '
-    f'<span style="font-size:35px; font-weight:bold; vertical-align:middle;">{hull_name}</span> '
-    f'<span style="font-size:30px; vertical-align:middle;">'
-    f'{int(count_pf)} points ({pct_pf:.1f}%)'
-    f'</span><br>'
-)
+   legend_text += (   #jetzt korrekt innerhalb der Schleife
+        f'<span style="color:{color}; font-size:62px;">■</span> '
+        f'<span style="font-size:35px; font-weight:bold;">{hull_name}</span> '
+        f'<span style="font-size:30px;">'
+        f'{int(count_pf)} points ({pct_pf:.1f}%)'
+        f'</span><br>'
+    )
 
 print("\nLegend content with counts and percentages:")
 print(legend_text)
