@@ -365,58 +365,6 @@ df_hulls_combined = pd.concat([
 # Groups of hull data based on origin and AB value
 grouped_hulls_combined = df_hulls_combined.groupby(["Herkunft", "AB_Value"])
 
-def classify_by_drawn_subfield_mahalanobis(df_points, grouped_hulls):
-    labels = []
-    distances = []
-
-    for _, row in df_points.iterrows():
-
-        px = row["Gro"]
-        py = calculate_y_position(row["AB"], row["Pyr"])
-        point = np.array([px, py], dtype=float)
-
-        best_label = None
-        best_distance = np.inf
-
-        for (herkunft, ab_value), group in grouped_hulls:
-
-            # optional: nur Subfelder im gleichen AB-Rechteck vergleichen
-            if int(ab_value) != int(row["AB"]):
-                continue
-
-            coords = group[["X", "Y"]].to_numpy(dtype=float)
-
-            if len(coords) < 3:
-                continue
-
-            mu = coords.mean(axis=0)
-
-            cov = np.cov(coords, rowvar=False)
-
-            # Regularisierung gegen singuläre Kovarianz
-            cov = cov + np.eye(2) * 1e-6
-
-            try:
-                inv_cov = np.linalg.inv(cov)
-            except np.linalg.LinAlgError:
-                continue
-
-            diff = point - mu
-            d2 = diff @ inv_cov @ diff.T
-            d = np.sqrt(d2)
-
-            if d < best_distance:
-                best_distance = d
-                best_label = herkunft
-
-        labels.append(best_label)
-        distances.append(best_distance)
-
-    df_points["Nearest_Subfield"] = labels
-    df_points["Distance"] = distances
-
-    return df_points
-
 
 # Function to plot convex hulls with different colors based on source file
 def plot_imported_hulls_with_file_colors(grouped_hulls, file_color_mapping):
@@ -1157,10 +1105,13 @@ df_maha = pd.DataFrame({
 
 if distance_method == "Mahalanobis":
 
-    df_parameters = classify_by_drawn_subfield_mahalanobis(
-        df_parameters,
-        grouped_hulls_combined
-    )
+    df_maha = classify_dataset(df_maha, means, sigmas)
+
+    df_parameters["Nearest_Subfield"] = \
+        df_maha["Nearest_Subfield"]
+
+    df_parameters["Distance"] = \
+        df_maha["Mahalanobis_Distance"]
 
 
 elif distance_method == "Log-Euclidean":
