@@ -1261,16 +1261,17 @@ fig.update_layout(
 )
 
 
-# IMAGE EXPORT: PNG or TIFF
-
+# ==========================================
+# IMAGE EXPORT: PNG or SVG
+# ==========================================
 
 export_format = st.selectbox(
     "Select Export Format",
-    ["PNG", "SVG"]
+    ["PNG", "SVG"],
+    key="export_format_selector"
 )
 
 try:
-
     img_bytes = fig.to_image(
         format=export_format.lower(),
         width=2260,
@@ -1278,20 +1279,22 @@ try:
         scale=2
     )
 
-    mime_type = (
-        "image/png"
-        if export_format == "PNG"
-        else "image/svg+xml"
-    )
+    if export_format == "PNG":
+        file_extension = "png"
+        mime_type = "image/png"
+    else:
+        file_extension = "svg"
+        mime_type = "image/svg+xml"
 
     st.download_button(
         label=f"Download {export_format}",
         data=img_bytes,
-        file_name=f"cantor_diagram.{export_format.lower()}",
-        mime=mime_type
+        file_name=f"cantor_diagram.{file_extension}",
+        mime=mime_type,
+        key=f"download_button_{file_extension}"
     )
 
-except Exception:
+except Exception as e:
     st.warning(
         f"{export_format} export not available on Streamlit Cloud "
         "(missing Chrome/Kaleido dependency)."
