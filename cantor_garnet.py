@@ -1271,6 +1271,8 @@ export_format = st.selectbox(
     key="export_format_selector"
 )
 
+st.write("Current export format:", export_format)
+
 try:
     img_bytes = fig.to_image(
         format=export_format.lower(),
