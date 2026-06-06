@@ -1261,9 +1261,8 @@ fig.update_layout(
 )
 
 
-# ==========================================
 # IMAGE EXPORT: PNG or TIFF
-# ==========================================
+
 
 export_format = st.selectbox(
     "Select Export Format",
