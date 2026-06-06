@@ -1266,7 +1266,7 @@ fig.update_layout(
 
 export_format = st.selectbox(
     "Select Export Format",
-    ["PNG", "TIFF"]
+    ["PNG", "SVG"]
 )
 
 try:
