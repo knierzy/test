@@ -1262,28 +1262,31 @@ fig.update_layout(
 
 
 # ==========================================
-# OPTIONAL PNG EXPORT
+# IMAGE EXPORT: PNG or TIFF
 # ==========================================
 
-try:
+export_format = st.selectbox(
+    "Select Export Format",
+    ["PNG", "TIFF"]
+)
 
+try:
     img_bytes = fig.to_image(
-        format="png",
+        format=export_format.lower(),
         width=2260,
         height=1210,
         scale=2
     )
 
     st.download_button(
-        label="Download PNG",
+        label=f"Download {export_format}",
         data=img_bytes,
-        file_name="cantor_diagram.png",
-        mime="image/png"
+        file_name=f"cantor_diagram.{export_format.lower()}",
+        mime=f"image/{export_format.lower()}"
     )
 
 except Exception as e:
-
     st.warning(
-        "PNG export not available on Streamlit Cloud "
+        f"{export_format} export not available on Streamlit Cloud "
         "(missing Chrome/Kaleido dependency)."
     )
