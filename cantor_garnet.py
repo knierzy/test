@@ -717,6 +717,8 @@ plot_bgcolor="white",
         range=[0, rechtecke[-1][0] + rechtecke[-1][1]+ 20],
         tickformat=".0f",
         tickfont=dict(size=24, color="black")
+        showgrid=False,
+        zeroline=False
     ),
     yaxis=dict(
         title=dict(
@@ -729,6 +731,8 @@ plot_bgcolor="white",
         dtick=10,
         tickfont=dict(size=24, color="black"),
         linecolor="gray"
+        showgrid=False,
+        zeroline=False
     ),
     autosize=False,
     width=2260,
