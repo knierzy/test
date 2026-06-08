@@ -1229,7 +1229,11 @@ fig.add_shape(
     )
 )
 
-
+fig.update_layout(
+    hoverlabel=dict(
+        font_size=24
+    )
+)
 
 st.plotly_chart(fig, use_container_width=True)
 
