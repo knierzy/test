@@ -152,15 +152,15 @@ def add_rechtecke_mit_farbverlauf(rechtecke, x_offset, spiegeln=False):
                 showlegend=False
 ))
 
-       # for x_pos in range(1, breite):
-       #     x_val = x_offset - x_pos if spiegeln else x_offset + x_pos
-       #     fig.add_trace(go.Scatter(
-       #         x=[x_val, x_val],
-     #           y=[y_position, y_position + hoehe],
-    #            mode="lines",
-     #           line=dict(color="gray", width=2),
-        #         showlegend=False
-      #      ))
+        for x_pos in range(1, breite):
+            x_val = x_offset - x_pos if spiegeln else x_offset + x_pos
+            fig.add_trace(go.Scatter(
+                x=[x_val, x_val],
+               y=[y_position, y_position + hoehe],
+               mode="lines",
+                line=dict(color="gray", width=2),
+                 showlegend=False
+           ))
 
 # === Create axis labels (GLOBAL, NOT inside function!) ===
 x_labels = {
