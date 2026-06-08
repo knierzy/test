@@ -716,7 +716,7 @@ plot_bgcolor="white",
         ),
         range=[0, rechtecke[-1][0] + rechtecke[-1][1]+ 20],
         tickformat=".0f",
-        tickfont=dict(size=24, color="black")
+        tickfont=dict(size=24, color="black"),
         showgrid=False,
         zeroline=False
     ),
