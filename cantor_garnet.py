@@ -1207,6 +1207,23 @@ fig.add_annotation(
     font=dict(size=30, color="black")
 )
 
+fig.add_shape(
+    type="rect",
+    xref="paper",
+    yref="paper",
+    x0=0.015,
+    x1=0.37,
+    y0=0.52,
+    y1=0.98,
+    fillcolor="white",
+    line=dict(color="black", width=3),
+    layer="above"
+)
+
+
+
+
+
 fig.update_layout(
     annotations=[
         dict(
@@ -1217,9 +1234,8 @@ fig.update_layout(
             text=legend_text,
             showarrow=False,
             font=dict(size=28, color="black"),
-            bgcolor="rgba(255, 255, 255, 1)",
-            bordercolor="black",
-            borderwidth=3,
+            bgcolor="rgba(0,0,0,0)",
+            borderwidth=0,
             xanchor="left",
             yanchor="top",
             align="left",
