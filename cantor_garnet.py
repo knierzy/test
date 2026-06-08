@@ -242,14 +242,7 @@ colorbar_choice = st.selectbox(
     ]
 )
 
-distance_method = st.selectbox(
-    "Select Distance Metric",
-    [
-        "Mahalanobis",
-        "Log-Euclidean",
-        "Aitchison"
-    ]
-)
+distance_method = "Mahalanobis"
 
 # =====================================
 # POINT SIZE SLIDER
