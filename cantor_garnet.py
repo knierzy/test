@@ -223,7 +223,7 @@ if df_uploaded.shape[1] >= 5:
     df_parameters["Locality"] = df_uploaded.iloc[:, 4]
 
 # Reihenfolge explizit fixieren
-ordered_cols = ["Alm", "Pyr", "Gro", "Spe"]
+ordered_cols = ["Alm", "Prp", "Grs", "Sps"]
 
 if "Locality" in df_parameters.columns:
     ordered_cols.append("Locality")
