@@ -1172,8 +1172,8 @@ print("Sigmas cols:", list(sigmas.columns))
 print("Points cols: ['Alm','Spe','Pyr','Gro']")
 
 legend_text = (
-    "<span style='font-size:45px; font-weight:bold;'>Garnet Provenance Groups</span><br>"
-    "<span style='font-size:34px; font-style:italic;'>Classification based on Mahalanobis distance</span><br><br>"
+    "<span style='font-size:40px; font-weight:bold;'>Garnet Provenance Groups</span><br>"
+    "<span style='font-size:26px; font-style:italic;'>Classification based on Mahalanobis distance</span><br><br>"
     f"<span style='font-size:30px;'>Locality: {df_parameters['Locality'].iloc[0] if 'Locality' in df_parameters.columns else 'not specified'}</span><br><br>"
 )
 
@@ -1186,8 +1186,8 @@ for file_path in ordered_hulls:
 
     legend_text += (
         f'<span style="color:{color}; font-size:42px; vertical-align:middle;">■</span> '
-        f'<span style="font-size:35px; font-weight:bold; vertical-align:middle;">{hull_name}</span> '
-        f'<span style="font-size:30px; vertical-align:middle;">'
+        f'<span style="font-size:31px; font-weight:bold; vertical-align:middle;">{hull_name}</span> '
+        f'<span style="font-size:26px; vertical-align:middle;">'
         f'{int(count_pf)} points ({pct_pf:.1f}%)'
         f'</span><br>'
     )
@@ -1210,7 +1210,7 @@ fig.add_annotation(
 fig.update_layout(
     annotations=[
         dict(
-            x=0.02,
+            x=0.015,
             y=0.98,
             xref="paper",
             yref="paper",
