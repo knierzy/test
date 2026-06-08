@@ -212,9 +212,9 @@ if df_uploaded.shape[1] < 4:
 df_parameters = pd.DataFrame({
 
     "Alm": df_uploaded.iloc[:, 0],
-    "Pyr": df_uploaded.iloc[:, 1],
-    "Gro": df_uploaded.iloc[:, 2],
-    "Spe": df_uploaded.iloc[:, 3]
+    "Prp": df_uploaded.iloc[:, 1],
+    "Grs": df_uploaded.iloc[:, 2],
+    "Sps": df_uploaded.iloc[:, 3]
 
 })
 
