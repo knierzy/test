@@ -121,25 +121,19 @@ def ensure_transparency(color, alpha=0.7):
         return f"rgba(0, 0, 0, {alpha})"
 
 
-# Add rectangles with color gradients along the new x-axis
 def add_rechtecke_mit_farbverlauf(rechtecke, x_offset, spiegeln=False):
     for i, (y_position, hoehe, label) in enumerate(rechtecke):
         breite = i + 1
-        gradient_steps = 10  # Number of steps in the color gradient
+        gradient_steps = 5 if i >= 90 else 10
 
-
-        grau_start = 200  # darker gray at the bottom
-        grau_ende = 230 # brighter gray at the top 
+        grau_start = 200
+        grau_ende = 230
 
         for step in range(gradient_steps):
-            # Calculate the gray value within an AB-rectangle
             grau_wert = int(grau_start + (grau_ende - grau_start) * (step / (gradient_steps - 1)))
-
-            # transparency variation for smoother shading
             alpha = 0.8 - (0.6 * (step / (gradient_steps - 1)))
             color = f'rgba({grau_wert}, {grau_wert}, {grau_wert}, {alpha})'
 
-            # determine coordinates for the gradient along the new x-axis (sum A + B)
             y_start = y_position + (step / gradient_steps) * hoehe
             y_end = y_position + ((step + 1) / gradient_steps) * hoehe
 
@@ -148,26 +142,25 @@ def add_rechtecke_mit_farbverlauf(rechtecke, x_offset, spiegeln=False):
             else:
                 x_start, x_end = x_offset, x_offset + breite
 
-            # add rectangle polygon for this gradient step
             fig.add_trace(go.Scatter(
                 x=[x_start, x_start, x_end, x_end, x_start],
                 y=[y_start, y_end, y_end, y_start, y_start],
                 fill="toself",
-                mode="lines",
+                mode="none",
                 fillcolor=color,
-                line=dict(color="gray", width=0)  
-            ))
+                hoverinfo="skip",
+                showlegend=False
+))
 
         for x_pos in range(1, breite):
             x_val = x_offset - x_pos if spiegeln else x_offset + x_pos
             fig.add_trace(go.Scatter(
                 x=[x_val, x_val],
-                y=[y_position, y_position + hoehe],
-                mode="lines",
+               y=[y_position, y_position + hoehe],
+               mode="lines",
                 line=dict(color="gray", width=2),
-                showlegend=False
-            ))
-
+                 showlegend=False
+           ))
 
 # === Create axis labels (GLOBAL, NOT inside function!) ===
 x_labels = {
@@ -249,9 +242,26 @@ colorbar_choice = st.selectbox(
         "Custom"
     ]
 )
-    
 
+distance_method = "Mahalanobis"
 
+# =====================================
+# POINT SIZE SLIDER
+# =====================================
+
+point_size = st.slider(
+    "Select Point Size",
+    min_value=5,
+    max_value=40,
+    value=20,
+    step=1
+)
+
+outer_size = point_size
+halo_size = point_size - 2
+cutout_size = point_size * 0.08
+inner_size = point_size * 0.08
+center_size = point_size * 0.18
 
 
 df_parameters = df_parameters[
@@ -512,7 +522,7 @@ fig.add_trace(go.Scatter(
     mode="markers",
     marker=dict(
         symbol="circle",
-        size=20,
+        size=outer_size,
         color="rgba(0,0,0,0)",
         line=dict(color="black", width=4)
     ),
@@ -527,7 +537,7 @@ fig.add_trace(go.Scatter(
     mode="markers",
     marker=dict(
         symbol="circle",
-        size=18,
+        size=halo_size,
         color=ratios[mask_circle],
         colorscale=selected_colorscale,
         cmin=0,
@@ -547,7 +557,7 @@ fig.add_trace(go.Scatter(
     mode="markers",
     marker=dict(
         symbol="circle",
-        size=1,
+        size=cutout_size,
         color="white",
         line=dict(width=0)
     ),
@@ -562,7 +572,7 @@ fig.add_trace(go.Scatter(
     mode="markers",
     marker=dict(
         symbol="circle",
-        size=1,
+        size=inner_size,
         color=ratios[mask_circle],
         colorscale=selected_colorscale,
         cmin=0,
@@ -579,7 +589,7 @@ fig.add_trace(go.Scatter(
     mode="markers",
     marker=dict(
         symbol="circle",
-        size=3.5,
+        size=center_size,
         color="black"
     ),
     hoverinfo="skip",
@@ -706,19 +716,23 @@ plot_bgcolor="white",
         ),
         range=[0, rechtecke[-1][0] + rechtecke[-1][1]+ 20],
         tickformat=".0f",
-        tickfont=dict(size=24, color="black")
+        tickfont=dict(size=24, color="black"),
+        showgrid=False,
+        zeroline=False
     ),
     yaxis=dict(
         title=dict(
             text="Pyrope (%) /// Grossular (%) = height rectangle <sub>ABCD</sub> − Pyrope (%)",
             font=dict(size=28, color="black", family="Arial Black")
         ),
-        range=[-1.3, 100],
+        range=[0, 100],
         constrain="domain",
         tickformat=".0f",
         dtick=10,
         tickfont=dict(size=24, color="black"),
-        linecolor="gray"
+        linecolor="gray",
+        showgrid=False,
+        zeroline=False
     ),
     autosize=False,
     width=2260,
@@ -783,33 +797,134 @@ fig.add_shape(
 )
 
 def classify_dataset(df_input, means, sigmas):
+
     X_pts = df_input[["Alm","Pyr","Gro","Spe"]].to_numpy()
 
     labels = []
     d_min  = []
 
     sigmas_safe = sigmas.clip(lower=0.5)
-    invcovs = {k: np.diag(1.0/(sigmas_safe.loc[k].to_numpy()**2)) for k in means.index}
-    mus     = {k: means.loc[k].to_numpy() for k in means.index}
+    invcovs = {
+        k: np.diag(1.0/(sigmas_safe.loc[k].to_numpy()**2))
+        for k in means.index
+    }
+
+    mus = {
+        k: means.loc[k].to_numpy()
+        for k in means.index
+    }
 
     for x in X_pts:
-        best_label, best_d = None, np.inf
+
+        best_label = None
+        best_d = np.inf
+
         for k in means.index:
+
             mu = mus[k]
             VI = invcovs[k]
+
             d2 = (x-mu) @ VI @ (x-mu).T
+
             if d2 < best_d:
                 best_d = d2
                 best_label = k
+
         labels.append(best_label)
         d_min.append(np.sqrt(best_d))
 
-    df_input["Nearest_Subfield_Mahalanobis"] = labels
+    df_input["Nearest_Subfield"] = labels
     df_input["Mahalanobis_Distance"] = d_min
 
     return df_input
 
 
+def classify_dataset_logeuclidean(df_input, means):
+
+    X_pts = df_input[["Alm","Pyr","Gro","Spe"]].to_numpy()
+
+    labels = []
+    d_min = []
+
+    mus = {
+        k: means.loc[k].to_numpy()
+        for k in means.index
+    }
+
+    for x in X_pts:
+
+        best_label = None
+        best_d = np.inf
+
+        x_log = np.log(x + 1)
+
+        for k in means.index:
+
+            mu_log = np.log(mus[k] + 1)
+
+            d = np.linalg.norm(x_log - mu_log)
+
+            if d < best_d:
+                best_d = d
+                best_label = k
+
+        labels.append(best_label)
+        d_min.append(best_d)
+
+    df_input["Nearest_Subfield_LogEuclidean"] = labels
+    df_input["LogEuclidean_Distance"] = d_min
+
+    return df_input
+
+def clr_transform(x):
+
+    x = np.asarray(x, dtype=float)
+
+    eps = 1e-6
+    x = x + eps
+
+    gm = np.exp(np.mean(np.log(x)))
+
+    return np.log(x / gm)
+
+
+def classify_dataset_aitchison(df_input, means):
+
+    X_pts = df_input[["Alm","Pyr","Gro","Spe"]].to_numpy()
+
+    labels = []
+    d_min = []
+
+    # CLR-transformierte Mittelwerte
+    mus_clr = {
+        k: clr_transform(means.loc[k].to_numpy())
+        for k in means.index
+    }
+
+    for x in X_pts:
+
+        x_clr = clr_transform(x)
+
+        best_label = None
+        best_d = np.inf
+
+        for k in means.index:
+
+            mu_clr = mus_clr[k]
+
+            d = np.linalg.norm(x_clr - mu_clr)
+
+            if d < best_d:
+                best_d = d
+                best_label = k
+
+        labels.append(best_label)
+        d_min.append(best_d)
+
+    df_input["Nearest_Subfield_Aitchison"] = labels
+    df_input["Aitchison_Distance"] = d_min
+
+    return df_input
 
 from scipy.stats import chi2
 import numpy as np
@@ -964,17 +1079,74 @@ print("Means cols:", list(means.columns))
 print("Sigmas cols:", list(sigmas.columns))
 print("Points cols: ['Alm','Pyr','Gro','Spe']")
 # 
-df_parameters = classify_dataset(df_parameters, means, sigmas)
+
+# =========================================================
+# SEPARATES DATAFRAME NUR FÜR MAHALANOBIS
+# =========================================================
+
+df_maha = pd.DataFrame({
+
+    # Alm bleibt
+    "Alm": df_parameters["Alm"],
+
+    # tatsächlicher Pyrope = bisher Gro
+    "Pyr": df_parameters["Gro"],
+
+    # tatsächlicher Grossular = bisher Spe
+    "Gro": df_parameters["Spe"],
+
+    # tatsächlicher Spessartine = bisher Pyr
+    "Spe": df_parameters["Pyr"]
+
+})
 
 
+if distance_method == "Mahalanobis":
+
+    df_maha = classify_dataset(df_maha, means, sigmas)
+
+    df_parameters["Nearest_Subfield"] = \
+        df_maha["Nearest_Subfield"]
+
+    df_parameters["Distance"] = \
+        df_maha["Mahalanobis_Distance"]
+
+
+elif distance_method == "Log-Euclidean":
+
+    df_maha = classify_dataset_logeuclidean(
+        df_maha,
+        means
+    )
+
+    df_parameters["Nearest_Subfield"] = \
+        df_maha["Nearest_Subfield_LogEuclidean"]
+
+    df_parameters["Distance"] = \
+        df_maha["LogEuclidean_Distance"]
+
+
+elif distance_method == "Aitchison":
+
+    df_maha = classify_dataset_aitchison(
+        df_maha,
+        means
+    )
+
+    df_parameters["Nearest_Subfield"] = \
+        df_maha["Nearest_Subfield_Aitchison"]
+
+    df_parameters["Distance"] = \
+        df_maha["Aitchison_Distance"]
+    
 # Classification using Mahalanobis (diagonal covariance)
 
  
 
 # Summary
-summary_pf = df_parameters["Nearest_Subfield_Mahalanobis"].value_counts()
+summary_pf = df_parameters["Nearest_Subfield"].value_counts()
 if not df_linz_params.empty:
-    summary_lmf = df_linz_params["Nearest_Subfield_Mahalanobis"].value_counts()
+    summary_lmf = df_linz_params["Nearest_Subfield"].value_counts()
     summary_lmf_pct = (summary_lmf / len(df_linz_params) * 100).round(1)
 else:
     summary_lmf = pd.Series(dtype=float)
@@ -1000,8 +1172,8 @@ print("Sigmas cols:", list(sigmas.columns))
 print("Points cols: ['Alm','Spe','Pyr','Gro']")
 
 legend_text = (
-    "<span style='font-size:45px; font-weight:bold;'>Garnet Provenance Groups</span><br>"
-    "<span style='font-size:34px; font-style:italic;'>Classification based on Mahalanobis distance</span><br><br>"
+    "<span style='font-size:40px; font-weight:bold;'>Garnet Provenance Groups</span><br>"
+    "<span style='font-size:26px; font-style:italic;'>Classification based on Mahalanobis distance</span><br><br>"
     f"<span style='font-size:30px;'>Locality: {df_parameters['Locality'].iloc[0] if 'Locality' in df_parameters.columns else 'not specified'}</span><br><br>"
 )
 
@@ -1012,13 +1184,10 @@ for file_path in ordered_hulls:
     count_pf = summary_pf.get(hull_name, 0)
     pct_pf = summary_pf_pct.get(hull_name, 0)
 
-    count_lmf = summary_lmf.get(hull_name, 0)
-    pct_lmf = summary_lmf_pct.get(hull_name, 0)
-
-    legend_text += (   #jetzt korrekt innerhalb der Schleife
-        f'<span style="color:{color}; font-size:62px;">■</span> '
-        f'<span style="font-size:35px; font-weight:bold;">{hull_name}</span> '
-        f'<span style="font-size:30px;">'
+    legend_text += (
+        f'<span style="color:{color}; font-size:42px; vertical-align:middle;">■</span> '
+        f'<span style="font-size:31px; font-weight:bold; vertical-align:middle;">{hull_name}</span> '
+        f'<span style="font-size:26px; vertical-align:middle;">'
         f'{int(count_pf)} points ({pct_pf:.1f}%)'
         f'</span><br>'
     )
@@ -1041,7 +1210,7 @@ fig.add_annotation(
 fig.update_layout(
     annotations=[
         dict(
-            x=0.02,
+            x=0.015,
             y=0.98,
             xref="paper",
             yref="paper",
@@ -1076,14 +1245,57 @@ fig.add_shape(
 
 
 
-
 st.plotly_chart(fig, use_container_width=True)
 
-img_bytes = fig.to_image(format="png")
 
-st.download_button(
-    label="Download PNG",
-    data=img_bytes,
-    file_name="cantor_diagram.png",
-    mime="image/png"
+
+fig.update_layout(
+    margin=dict(
+        l=140,   # links
+        r=80,    # rechts
+        t=20,    # oben
+        b=120    # unten
+    )
 )
+
+
+# ==========================================
+# IMAGE EXPORT: PNG or SVG
+# ==========================================
+
+export_format = st.selectbox(
+    "Select Export Format",
+    ["PNG", "SVG"],
+    key="export_format_selector"
+)
+
+st.write("Current export format:", export_format)
+
+try:
+    img_bytes = fig.to_image(
+        format=export_format.lower(),
+        width=2260,
+        height=1210,
+        scale=2
+    )
+
+    if export_format == "PNG":
+        file_extension = "png"
+        mime_type = "image/png"
+    else:
+        file_extension = "svg"
+        mime_type = "image/svg+xml"
+
+    st.download_button(
+        label=f"Download {export_format}",
+        data=img_bytes,
+        file_name=f"cantor_diagram.{file_extension}",
+        mime=mime_type,
+        key=f"download_button_{file_extension}"
+    )
+
+except Exception as e:
+    st.warning(
+        f"{export_format} export not available on Streamlit Cloud "
+        "(missing Chrome/Kaleido dependency)."
+    )
