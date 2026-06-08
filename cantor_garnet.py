@@ -510,7 +510,24 @@ fig.add_trace(go.Scatter(
         color="rgba(0,0,0,0)",
         line=dict(color="black", width=4)
     ),
-    hoverinfo="skip",
+    text=[
+        f"Locality: {loc}<br>"
+        f"Alm: {alm:.0f}%<br>"
+        f"Sps: {sps:.0f}%<br>"
+        f"Prp: {prp:.0f}%<br>"
+        f"Grs: {grs:.0f}%<br>"
+        f"Subfield: {sub}"
+        for alm, sps, prp, grs, loc, sub
+        in zip(
+            df_parameters["Alm"],
+            df_parameters["Sps"],
+            df_parameters["Prp"],
+            df_parameters["Grs"],
+            df_parameters["Locality"],
+            df_parameters["Nearest_Subfield"]
+        )
+    ],
+    hovertemplate="%{text}<extra></extra>",
     showlegend=False
 ))
 
