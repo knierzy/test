@@ -193,17 +193,7 @@ if uploaded_file is not None:
     # uploaded Excel file
     df_uploaded = pd.read_excel(uploaded_file)
 
-# =========================================================
-# FIXE SPALTENREIHENFOLGE
-# (analog zu Skript 2)
-#
-# Spalte 1 = Alm
-# Spalte 2 = Pyr
-# Spalte 3 = Gro
-# Spalte 4 = Spe
-# Spalte 5 = Locality
-#
-# =========================================================
+
 
 if df_uploaded.shape[1] < 4:
     st.error("Excel file must contain at least 4 columns.")
@@ -245,9 +235,9 @@ colorbar_choice = st.selectbox(
 
 distance_method = "Mahalanobis"
 
-# =====================================
+
 # POINT SIZE SLIDER
-# =====================================
+
 
 point_size = st.slider(
     "Select Point Size",
@@ -272,7 +262,6 @@ df_parameters = df_parameters[
 ]
 
 
-
  # optional: second dataset empty
 df_linz_params = pd.DataFrame(
     columns=[
@@ -282,8 +271,6 @@ df_linz_params = pd.DataFrame(
         "Unnamed: 4"
     ]
 )
-
-
 
 
 if not df_linz_params.empty:
@@ -437,7 +424,7 @@ grouped_hulls_combined = df_hulls_combined.groupby(["Herkunft", "AB_Value"])
 
 plot_imported_hulls_with_file_colors(grouped_hulls_combined, color_mapping_files)
 
-#  DAS HIER FEHLT
+
 
 if not df_linz_params.empty:
     df_linz_params['Ratio'] = (
@@ -471,7 +458,7 @@ else:
 x_values, y_values, color_values = [], [], []
 symbols = []   
 
-# === Pernegg ===
+# = Pernegg =
 for idx, row in df_parameters.iterrows():
     a = row['Alm']
     b = row['Sps']
@@ -486,7 +473,7 @@ for idx, row in df_parameters.iterrows():
         color_values.append(ratio)
         symbols.append("circle")   
 
-# === Linz/Melk ===
+# = Linz/Melk =
 for _, row in df_linz_params.iterrows():
     a = row['Unnamed: 1']
     b = row['Unnamed: 2']
@@ -500,7 +487,7 @@ for _, row in df_linz_params.iterrows():
         color_values.append(ratio)
         symbols.append("x")
 
-#  HIER EINFÜGEN (direkt nach den Schleifen!)
+
 
 x_vals = np.array(x_values)
 y_vals = np.array(y_values)
@@ -515,7 +502,7 @@ mask_cross = symbols_arr == "x"
 #  CIRCLES (Pernegg)
 # =========================
 
-# 1. Schwarzer Außenring
+# 1. Outer black ring
 fig.add_trace(go.Scatter(
     x=x_vals[mask_circle],
     y=y_vals[mask_circle],
@@ -530,7 +517,7 @@ fig.add_trace(go.Scatter(
     showlegend=False
 ))
 
-# 2. Farbiger Halo
+# 2.Colored Halo
 fig.add_trace(go.Scatter(
     x=x_vals[mask_circle],
     y=y_vals[mask_circle],
@@ -550,7 +537,7 @@ fig.add_trace(go.Scatter(
     showlegend=False
 ))
 
-# 3. Weißer Cutout
+# 3. White Cutout
 fig.add_trace(go.Scatter(
     x=x_vals[mask_circle],
     y=y_vals[mask_circle],
@@ -565,7 +552,7 @@ fig.add_trace(go.Scatter(
     showlegend=False
 ))
 
-# 4. Innerer Farbpunkt
+# 4. Inner colored dot
 fig.add_trace(go.Scatter(
     x=x_vals[mask_circle],
     y=y_vals[mask_circle],
@@ -670,7 +657,7 @@ fig.add_trace(go.Scatter(
     showlegend=False
 ))
 
-# 5. Schwarzer Mittelpunkt
+# 5.  Central point
 fig.add_trace(go.Scatter(
     x=x_vals[mask_cross],
     y=y_vals[mask_cross],
@@ -684,9 +671,9 @@ fig.add_trace(go.Scatter(
     showlegend=False
 ))
 
-# =========================
+
 #  COLORBAR (global!)
-# =========================
+
 
 fig.update_layout(
     coloraxis=dict(
@@ -782,11 +769,11 @@ for trace in fig.data:
     trace.x, trace.y = trace.y, trace.x
 
 
-# definieren                #march26
+
 x_min = -30
 x_max = rechtecke[-1][0] + rechtecke[-1][1]
 
-# verwenden
+
 fig.add_shape(
     type="line",
     x0=x_min,
@@ -895,7 +882,7 @@ def classify_dataset_aitchison(df_input, means):
     labels = []
     d_min = []
 
-    # CLR-transformierte Mittelwerte
+    # CLR-transformed means
     mus_clr = {
         k: clr_transform(means.loc[k].to_numpy())
         for k in means.index
@@ -929,11 +916,7 @@ def classify_dataset_aitchison(df_input, means):
 from scipy.stats import chi2
 import numpy as np
 
-# =========================================================
 # SUBFIELD MEANS
-# Reihenfolge IMMER:
-# Alm, Pyr, Gro, Spe
-# =========================================================
 
 subfield_means_raw = pd.DataFrame({
     "alm": [
@@ -991,9 +974,9 @@ subfield_means_raw = pd.DataFrame({
     "Calc-silicate rocks"
 ])
 
-# =========================================================
+
 # SUBFIELD STANDARD DEVIATIONS
-# =========================================================
+
 
 subfield_sigmas_raw = pd.DataFrame({
 
@@ -1043,10 +1026,7 @@ subfield_sigmas_raw = pd.DataFrame({
 
 }, index=subfield_means_raw.index)
 
-# =========================================================
-# KORREKTE SPALTENREIHENFOLGE
-# Alm, Pyr, Gro, Spe
-# =========================================================
+
 
 means = (
     subfield_means_raw
@@ -1070,9 +1050,9 @@ sigmas = (
     [["Alm", "Sps", "Prp", "Grs"]]
 )
 
-# =========================================================
+
 # DIAGNOSTIC CHECK
-# =========================================================
+
 
 print("\nCheck Spalten-Reihenfolge:")
 print("Means cols:", list(means.columns))
@@ -1080,9 +1060,7 @@ print("Sigmas cols:", list(sigmas.columns))
 print("Points cols: ['Alm','Pyr','Gro','Spe']")
 # 
 
-# =========================================================
-# SEPARATES DATAFRAME NUR FÜR MAHALANOBIS
-# =========================================================
+
 
 df_maha = df_parameters[["Alm", "Prp", "Grs", "Sps"]].copy()
 
@@ -1125,9 +1103,6 @@ elif distance_method == "Aitchison":
     df_parameters["Distance"] = \
         df_maha["Aitchison_Distance"]
     
-# Classification using Mahalanobis (diagonal covariance)
-
- 
 
 # Summary
 summary_pf = df_parameters["Nearest_Subfield"].value_counts()
@@ -1151,7 +1126,7 @@ print(pd.DataFrame({
     "LMF %": summary_lmf_pct
 }))
 
-#  (Optional) small diagnostic output
+#  small diagnostic output
 print("\nCheck Spalten-Reihenfolge:")
 print("Means cols:", list(means.columns))
 print("Sigmas cols:", list(sigmas.columns))
@@ -1207,9 +1182,6 @@ fig.add_shape(
 )
 
 
-
-
-
 fig.update_layout(
     annotations=[
         dict(
@@ -1253,17 +1225,16 @@ st.plotly_chart(fig, use_container_width=True)
 
 fig.update_layout(
     margin=dict(
-        l=140,   # links
-        r=80,    # rechts
-        t=20,    # oben
-        b=120    # unten
+        l=140,   
+        r=80,    
+        t=20,    
+        b=120    
     )
 )
 
 
-# ==========================================
 # IMAGE EXPORT: PNG or SVG
-# ==========================================
+
 
 export_format = st.selectbox(
     "Select Export Format",
