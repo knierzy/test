@@ -86,7 +86,7 @@ fig = go.Figure()
 
 # normalization LRM
 def normalize_to_100_LRM(row):
-    cols = ['Alm', 'Pyr', 'Gro', 'Spe']
+    cols = ['Alm', 'Prp', 'Grs', 'Sps']
     values = row[cols].astype(float).to_numpy()
 
     ints = np.floor(values).astype(int)
@@ -266,7 +266,7 @@ center_size = point_size * 0.18
 
 df_parameters = df_parameters[
     df_parameters.apply(
-        lambda row: row[['Alm','Pyr','Gro','Spe']].sum() >= 98,
+        lambda row: row[['Alm','Prp','Grs','Sps']].sum() >= 98,
         axis=1
     )
 ]
@@ -300,7 +300,7 @@ df_parameters = df_parameters.apply(normalize_to_100_LRM, axis=1)
 
 
 # Calculate AB (A + B) for the y-position
-df_parameters['AB'] = df_parameters['Alm'] + df_parameters['Pyr']
+df_parameters['AB'] = df_parameters['Alm'] + df_parameters['Prp']
 
 
 # Calculate the y-position based on AB and B
@@ -450,7 +450,7 @@ if not df_linz_params.empty:
 df_parameters['Ratio'] = (
     df_parameters['Alm']
     /
-    (df_parameters['Alm'] + df_parameters['Pyr'])
+    (df_parameters['Alm'] + df_parameters['Prp'])
 )
 
 custom_colorscale = [
@@ -474,8 +474,8 @@ symbols = []
 # === Pernegg ===
 for idx, row in df_parameters.iterrows():
     a = row['Alm']
-    b = row['Pyr']
-    c = row['Gro']
+    b = row['Prp']
+    c = row['Grs']
     ab_value = row['AB']
     ratio = row['Ratio']
 
@@ -798,7 +798,7 @@ fig.add_shape(
 
 def classify_dataset(df_input, means, sigmas):
 
-    X_pts = df_input[["Alm","Pyr","Gro","Spe"]].to_numpy()
+    X_pts = df_input[["Alm","Prp","Grs","Sps"]].to_numpy()
 
     labels = []
     d_min  = []
@@ -841,7 +841,7 @@ def classify_dataset(df_input, means, sigmas):
 
 def classify_dataset_logeuclidean(df_input, means):
 
-    X_pts = df_input[["Alm","Pyr","Gro","Spe"]].to_numpy()
+    X_pts = df_input[["Alm","Prp","Grs","Sps"]].to_numpy()
 
     labels = []
     d_min = []
@@ -890,7 +890,7 @@ def clr_transform(x):
 
 def classify_dataset_aitchison(df_input, means):
 
-    X_pts = df_input[["Alm","Pyr","Gro","Spe"]].to_numpy()
+    X_pts = df_input[["Alm","Prp","Grs","Sps"]].to_numpy()
 
     labels = []
     d_min = []
@@ -947,7 +947,7 @@ subfield_means_raw = pd.DataFrame({
         21.02162502
     ],
 
-    "pyr": [
+    "prp": [
         12.21280849,
         33.69541824,
         31.52675381,
@@ -958,7 +958,7 @@ subfield_means_raw = pd.DataFrame({
         3.069200646
     ],
 
-    "gro": [
+    "grs": [
         12.932808,
         10.07050389,
         23.08000919,
@@ -969,7 +969,7 @@ subfield_means_raw = pd.DataFrame({
         64.92615389
     ],
 
-    "sp": [
+    "sps": [
         9.18931335,
         1.921986915,
         1.177650051,
@@ -1008,7 +1008,7 @@ subfield_sigmas_raw = pd.DataFrame({
         21.2594703
     ],
 
-    "pyr": [
+    "prp": [
         8.402774083,
         14.64088125,
         12.21618211,
@@ -1019,7 +1019,7 @@ subfield_sigmas_raw = pd.DataFrame({
         2.57929375
     ],
 
-    "gro": [
+    "grs": [
         9.198543982,
         8.220985049,
         8.401915528,
@@ -1030,7 +1030,7 @@ subfield_sigmas_raw = pd.DataFrame({
         30.103043
     ],
 
-    "sp": [
+    "sps": [
         10.56094471,
         1.610341276,
         0.825854952,
@@ -1052,22 +1052,22 @@ means = (
     subfield_means_raw
     .rename(columns={
         "alm": "Alm",
-        "pyr": "Pyr",
-        "gro": "Gro",
-        "sp":  "Spe"
+        "prp": "Prp",
+        "grs": "Grs",
+        "sps":  "Sps"
     })
-    [["Alm", "Pyr", "Gro", "Spe"]]
+    [["Alm", "Prp", "Grs", "Sps"]]
 )
 
 sigmas = (
     subfield_sigmas_raw
     .rename(columns={
         "alm": "Alm",
-        "pyr": "Pyr",
-        "gro": "Gro",
-        "sp":  "Spe"
+        "prp": "Prp",
+        "grs": "Grs",
+        "sps":  "Sps"
     })
-    [["Alm", "Pyr", "Gro", "Spe"]]
+    [["Alm", "Prp", "Grs", "Sps"]]
 )
 
 # =========================================================
@@ -1090,13 +1090,13 @@ df_maha = pd.DataFrame({
     "Alm": df_parameters["Alm"],
 
     # tatsächlicher Pyrope = bisher Gro
-    "Pyr": df_parameters["Gro"],
+    "Prp": df_parameters["Grs"],
 
     # tatsächlicher Grossular = bisher Spe
-    "Gro": df_parameters["Spe"],
+    "Grs": df_parameters["Sps"],
 
     # tatsächlicher Spessartine = bisher Pyr
-    "Spe": df_parameters["Pyr"]
+    "Sps": df_parameters["Prp"]
 
 })
 
