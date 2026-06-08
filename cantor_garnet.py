@@ -474,7 +474,7 @@ symbols = []
 # === Pernegg ===
 for idx, row in df_parameters.iterrows():
     a = row['Alm']
-    b = row['Sps']
+    b = row['Prp']
     c = row['Grs']
     ab_value = row['AB']
     ratio = row['Ratio']
