@@ -300,7 +300,7 @@ df_parameters = df_parameters.apply(normalize_to_100_LRM, axis=1)
 
 
 # Calculate AB (A + B) for the y-position
-df_parameters['AB'] = df_parameters['Alm'] + df_parameters['Prp']
+df_parameters['AB'] = df_parameters['Alm'] + df_parameters['Sps']
 
 
 # Calculate the y-position based on AB and B
@@ -475,7 +475,7 @@ symbols = []
 for idx, row in df_parameters.iterrows():
     a = row['Alm']
     b = row['Sps']
-    c = row['Prp']
+    c = row['Grs']
     ab_value = row['AB']
     ratio = row['Ratio']
 
