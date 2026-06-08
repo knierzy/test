@@ -146,20 +146,21 @@ def add_rechtecke_mit_farbverlauf(rechtecke, x_offset, spiegeln=False):
                 x=[x_start, x_start, x_end, x_end, x_start],
                 y=[y_start, y_end, y_end, y_start, y_start],
                 fill="toself",
-                mode="lines",
+                mode="none",
                 fillcolor=color,
-                line=dict(color="gray", width=0)
-            ))
+                hoverinfo="skip",
+                showlegend=False
+))
 
         for x_pos in range(1, breite):
             x_val = x_offset - x_pos if spiegeln else x_offset + x_pos
             fig.add_trace(go.Scatter(
                 x=[x_val, x_val],
-                y=[y_position, y_position + hoehe],
-                mode="lines",
+               y=[y_position, y_position + hoehe],
+               mode="lines",
                 line=dict(color="gray", width=2),
-                showlegend=False
-            ))
+                 showlegend=False
+           ))
 
 # === Create axis labels (GLOBAL, NOT inside function!) ===
 x_labels = {
@@ -242,14 +243,7 @@ colorbar_choice = st.selectbox(
     ]
 )
 
-distance_method = st.selectbox(
-    "Select Distance Metric",
-    [
-        "Mahalanobis",
-        "Log-Euclidean",
-        "Aitchison"
-    ]
-)
+distance_method = "Mahalanobis"
 
 # =====================================
 # POINT SIZE SLIDER
@@ -722,7 +716,9 @@ plot_bgcolor="white",
         ),
         range=[0, rechtecke[-1][0] + rechtecke[-1][1]+ 20],
         tickformat=".0f",
-        tickfont=dict(size=24, color="black")
+        tickfont=dict(size=24, color="black"),
+        showgrid=False,
+        zeroline=False
     ),
     yaxis=dict(
         title=dict(
@@ -734,7 +730,9 @@ plot_bgcolor="white",
         tickformat=".0f",
         dtick=10,
         tickfont=dict(size=24, color="black"),
-        linecolor="gray"
+        linecolor="gray",
+        showgrid=False,
+        zeroline=False
     ),
     autosize=False,
     width=2260,
