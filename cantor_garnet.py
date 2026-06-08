@@ -212,9 +212,9 @@ if df_uploaded.shape[1] < 4:
 df_parameters = pd.DataFrame({
 
     "Alm": df_uploaded.iloc[:, 0],
-    "Prp": df_uploaded.iloc[:, 1],
-    "Grs": df_uploaded.iloc[:, 2],
-    "Sps": df_uploaded.iloc[:, 3]
+    "Sps": df_uploaded.iloc[:, 1],
+    "Prp": df_uploaded.iloc[:, 2],
+    "Grs": df_uploaded.iloc[:, 3]
 
 })
 
@@ -223,7 +223,7 @@ if df_uploaded.shape[1] >= 5:
     df_parameters["Locality"] = df_uploaded.iloc[:, 4]
 
 # Reihenfolge explizit fixieren
-ordered_cols = ["Alm", "Prp", "Grs", "Sps"]
+ordered_cols = ["Alm", "Sps", "Prp", "Grs"]
 
 if "Locality" in df_parameters.columns:
     ordered_cols.append("Locality")
@@ -266,7 +266,7 @@ center_size = point_size * 0.18
 
 df_parameters = df_parameters[
     df_parameters.apply(
-        lambda row: row[['Alm','Prp','Grs','Sps']].sum() >= 98,
+        lambda row: row[['Alm','Sps','Prp','Grs']].sum() >= 98,
         axis=1
     )
 ]
@@ -450,7 +450,7 @@ if not df_linz_params.empty:
 df_parameters['Ratio'] = (
     df_parameters['Alm']
     /
-    (df_parameters['Alm'] + df_parameters['Prp'])
+    (df_parameters['Alm'] + df_parameters['Sps'])
 )
 
 custom_colorscale = [
@@ -474,8 +474,8 @@ symbols = []
 # === Pernegg ===
 for idx, row in df_parameters.iterrows():
     a = row['Alm']
-    b = row['Prp']
-    c = row['Grs']
+    b = row['Sps']
+    c = row['Prp']
     ab_value = row['AB']
     ratio = row['Ratio']
 
@@ -798,7 +798,7 @@ fig.add_shape(
 
 def classify_dataset(df_input, means, sigmas):
 
-    X_pts = df_input[["Alm","Prp","Grs","Sps"]].to_numpy()
+    X_pts = df_input[["Alm","Sps","Prp","Grs"]].to_numpy()
 
     labels = []
     d_min  = []
@@ -841,7 +841,7 @@ def classify_dataset(df_input, means, sigmas):
 
 def classify_dataset_logeuclidean(df_input, means):
 
-    X_pts = df_input[["Alm","Prp","Grs","Sps"]].to_numpy()
+    X_pts = df_input[["Alm","Sps","Prp","Grs"]].to_numpy()
 
     labels = []
     d_min = []
@@ -890,7 +890,7 @@ def clr_transform(x):
 
 def classify_dataset_aitchison(df_input, means):
 
-    X_pts = df_input[["Alm","Prp","Grs","Sps"]].to_numpy()
+    X_pts = df_input[["Alm","Sps","Prp","Grs"]].to_numpy()
 
     labels = []
     d_min = []
@@ -1056,7 +1056,7 @@ means = (
         "grs": "Grs",
         "sps":  "Sps"
     })
-    [["Alm", "Prp", "Grs", "Sps"]]
+    [["Alm", "Sps", "Prp", "Grs"]]
 )
 
 sigmas = (
@@ -1067,7 +1067,7 @@ sigmas = (
         "grs": "Grs",
         "sps":  "Sps"
     })
-    [["Alm", "Prp", "Grs", "Sps"]]
+    [["Alm", "Sps", "Prp", "Grs"]]
 )
 
 # =========================================================
@@ -1084,21 +1084,7 @@ print("Points cols: ['Alm','Pyr','Gro','Spe']")
 # SEPARATES DATAFRAME NUR FÜR MAHALANOBIS
 # =========================================================
 
-df_maha = pd.DataFrame({
-
-    # Alm bleibt
-    "Alm": df_parameters["Alm"],
-
-    # tatsächlicher Pyrope = bisher Gro
-    "Prp": df_parameters["Grs"],
-
-    # tatsächlicher Grossular = bisher Spe
-    "Grs": df_parameters["Sps"],
-
-    # tatsächlicher Spessartine = bisher Pyr
-    "Sps": df_parameters["Prp"]
-
-})
+df_maha = df_parameters[["Alm", "Prp", "Grs", "Sps"]].copy()
 
 
 if distance_method == "Mahalanobis":
@@ -1169,7 +1155,7 @@ print(pd.DataFrame({
 print("\nCheck Spalten-Reihenfolge:")
 print("Means cols:", list(means.columns))
 print("Sigmas cols:", list(sigmas.columns))
-print("Points cols: ['Alm','Spe','Pyr','Gro']")
+print("Points cols: ['Alm','Sps','Prp','Grs']")
 
 legend_text = (
     "<span style='font-size:40px; font-weight:bold;'>Garnet Provenance Groups</span><br>"
