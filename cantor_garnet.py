@@ -730,7 +730,7 @@ plot_bgcolor="white",
         tickformat=".0f",
         dtick=10,
         tickfont=dict(size=24, color="black"),
-        linecolor="gray"
+        linecolor="gray",
         showgrid=False,
         zeroline=False
     ),
