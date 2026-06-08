@@ -1186,8 +1186,8 @@ for file_path in ordered_hulls:
 
     legend_text += (
         f'<span style="color:{color}; font-size:42px; vertical-align:middle;">■</span> '
-        f'<span style="font-size:35px; font-weight:bold; vertical-align:middle;">{hull_name}</span> '
-        f'<span style="font-size:30px; vertical-align:middle;">'
+        f'<span style="font-size:31px; font-weight:bold; vertical-align:middle;">{hull_name}</span> '
+        f'<span style="font-size:26px; vertical-align:middle;">'
         f'{int(count_pf)} points ({pct_pf:.1f}%)'
         f'</span><br>'
     )
@@ -1210,7 +1210,7 @@ fig.add_annotation(
 fig.update_layout(
     annotations=[
         dict(
-            x=0.02,
+            x=0.015,
             y=0.98,
             xref="paper",
             yref="paper",
