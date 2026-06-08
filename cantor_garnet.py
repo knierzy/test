@@ -142,14 +142,15 @@ def add_rechtecke_mit_farbverlauf(rechtecke, x_offset, spiegeln=False):
             else:
                 x_start, x_end = x_offset, x_offset + breite
 
-            fig.add_trace(go.Scatter(
+          fig.add_trace(go.Scatter(
                 x=[x_start, x_start, x_end, x_end, x_start],
                 y=[y_start, y_end, y_end, y_start, y_start],
                 fill="toself",
-                mode="lines",
+                mode="none",
                 fillcolor=color,
-                line=dict(color="gray", width=0)
-            ))
+                hoverinfo="skip",
+                showlegend=False
+))
 
        # for x_pos in range(1, breite):
        #     x_val = x_offset - x_pos if spiegeln else x_offset + x_pos
