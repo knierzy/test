@@ -523,8 +523,7 @@ fig.add_trace(go.Scatter(
             df_parameters["Sps"],
             df_parameters["Prp"],
             df_parameters["Grs"],
-            df_parameters["Locality"],
-            df_parameters["Nearest_Subfield"]
+            df_parameters["Locality"]
         )
     ],
     hovertemplate="%{text}<extra></extra>",
