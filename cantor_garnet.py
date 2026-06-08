@@ -107,8 +107,6 @@ def normalize_to_100_LRM(row):
     return row
 
 
-
-
 def ensure_transparency(color, alpha=0.7):
     if "rgba" in color:
         return color[:color.rfind(",")] + f", {alpha})"
@@ -162,7 +160,7 @@ def add_rechtecke_mit_farbverlauf(rechtecke, x_offset, spiegeln=False):
                  showlegend=False
            ))
 
-# === Create axis labels (GLOBAL, NOT inside function!) ===
+# === Create axis labels 
 x_labels = {
     50: "AB99", 440: "AB95", 915: "AB90", 1350: "AB85",
     1760: "AB80", 2158: "AB75", 2540: "AB70",
@@ -498,9 +496,8 @@ mask_circle = symbols_arr == "circle"
 mask_cross = symbols_arr == "x"
 
 
-# =========================
 #  CIRCLES (Pernegg)
-# =========================
+
 
 # 1. Outer black ring
 fig.add_trace(go.Scatter(
@@ -583,9 +580,9 @@ fig.add_trace(go.Scatter(
     showlegend=False
 ))
 
-# =========================
+
 # X (Linz/Melk)
-# =========================
+
 
 # 1. Black frame
 fig.add_trace(go.Scatter(
