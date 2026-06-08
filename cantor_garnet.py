@@ -516,7 +516,6 @@ fig.add_trace(go.Scatter(
         f"Sps: {sps:.0f}%<br>"
         f"Prp: {prp:.0f}%<br>"
         f"Grs: {grs:.0f}%<br>"
-        f"Subfield: {sub}"
         for alm, sps, prp, grs, loc
         in zip(
             df_parameters["Alm"],
