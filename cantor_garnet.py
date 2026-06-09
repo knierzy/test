@@ -28,6 +28,11 @@ st.markdown("""
 https://github.com/knierzy/cantor_grids/blob/main/data/garnet_examples_streamlit.xlsx
 """)
 
+uploaded_file = st.file_uploader(
+    "Upload Excel file (.xlsx)",
+    type=["xlsx"]
+)
+
 if uploaded_file is None:
     st.stop()
 
