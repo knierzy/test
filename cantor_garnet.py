@@ -14,7 +14,7 @@ import numpy as np
 
 st.set_page_config(layout="wide")
 
-st.title("Cantor Diagram – Garnet System")
+st.title("Cantor Diagram – Garnet Provenance Classification")
 
 st.markdown("""
 **Required column order:**  
