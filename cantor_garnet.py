@@ -17,7 +17,12 @@ st.set_page_config(layout="wide")
 st.title("Cantor Diagram – Garnet System")
 
 uploaded_file = st.file_uploader(
-    "Upload Excel file with Alm / Spe / Pyr / Gro columns",
+    "Upload Excel file with 5 columns:\n"
+    "1 = Almandine (Alm), "
+    "2 = Spessartine (Sps), "
+    "3 = Pyrope (Prp), "
+    "4 = Grossular (Grs), "
+    "5 = Locality (optional label)",
     type=["xlsx"]
 )
 
