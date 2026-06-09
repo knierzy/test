@@ -16,15 +16,17 @@ st.set_page_config(layout="wide")
 
 st.title("Cantor Diagram – Garnet System")
 
-uploaded_file = st.file_uploader(
-    "Upload Excel file with 5 columns:\n"
-    "1 = Almandine (Alm), "
-    "2 = Spessartine (Sps), "
-    "3 = Pyrope (Prp), "
-    "4 = Grossular (Grs), "
-    "5 = Locality (optional label)",
-    type=["xlsx"]
-)
+st.markdown("""
+**Required column order:**  
+1. Almandine (Alm)  
+2. Spessartine (Sps)  
+3. Pyrope (Prp)  
+4. Grossular (Grs)  
+5. Locality
+
+**Template Excel file:**  
+https://github.com/knierzy/cantor_grids/blob/main/data/garnet_examples_streamlit.xlsx
+""")
 
 if uploaded_file is None:
     st.stop()
