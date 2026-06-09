@@ -510,7 +510,22 @@ fig.add_trace(go.Scatter(
         color="rgba(0,0,0,0)",
         line=dict(color="black", width=4)
     ),
-    hoverinfo="skip",
+    text=[
+        f"Locality: {loc}<br>"
+        f"Alm: {alm:.0f}%<br>"
+        f"Sps: {sps:.0f}%<br>"
+        f"Prp: {prp:.0f}%<br>"
+        f"Grs: {grs:.0f}%<br>"
+        for alm, sps, prp, grs, loc
+        in zip(
+            df_parameters["Alm"],
+            df_parameters["Sps"],
+            df_parameters["Prp"],
+            df_parameters["Grs"],
+            df_parameters["Locality"]
+        )
+    ],
+    hovertemplate="%{text}<extra></extra>",
     showlegend=False
 ))
 
@@ -1214,7 +1229,11 @@ fig.add_shape(
     )
 )
 
-
+fig.update_layout(
+    hoverlabel=dict(
+        font_size=24
+    )
+)
 
 st.plotly_chart(fig, use_container_width=True)
 
