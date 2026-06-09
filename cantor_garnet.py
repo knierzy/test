@@ -18,10 +18,10 @@ st.title("Cantor Diagram – Garnet System")
 
 st.markdown("""
 **Required column order:**  
-1. Almandine (Alm)  
-2. Spessartine (Sps)  
-3. Pyrope (Prp)  
-4. Grossular (Grs)  
+1. Almandine   
+2. Spessartine   
+3. Pyrope   
+4. Grossular  
 5. Locality
 
 **Template Excel file:**  
