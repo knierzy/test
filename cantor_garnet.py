@@ -24,7 +24,7 @@ st.markdown("""
 4. Grossular  
 5. Locality
 
-**A template Excel file is available online at the following link. It shows the required column order and data format.  
+**A template Excel file (garnet_examples_streamlit.xlsx) is available online at the following link. It shows the required column order and data format.  
 https://github.com/knierzy/cantor_grids/blob/main/data/garnet_examples_streamlit.xlsx
 """)
 
