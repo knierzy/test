@@ -29,8 +29,8 @@ https://github.com/knierzy/cantor_grids/blob/main/data/garnet_examples_streamlit
 
 If you use this application in scientific work, please cite:
 
-Knierzinger, W., Forstner, S. J., & Eder, A. (2026). Cantor grids: A new 2D visualization framework for four-parameter compositional datasets in geochemistry and soil science. 
-Journal of Geochemical Exploration, 289, 108129. https://doi.org/10.1016/j.gexplo.2026.108129
+Knierzinger, W., Forstner, S. J., Eder, A. (2026). Cantor grids: A new 2D visualization framework for four-parameter compositional datasets in geochemistry and soil science. 
+Journal of Geochemical Exploration 289, 108129. https://doi.org/10.1016/j.gexplo.2026.108129
 """)
 
 uploaded_file = st.file_uploader(
