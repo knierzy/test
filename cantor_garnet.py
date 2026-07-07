@@ -1204,7 +1204,7 @@ fig.add_shape(
     yref="paper",
     x0=0.015,
     x1=0.37,
-    y0=0.52,
+    y0=0.48,
     y1=0.98,
     fillcolor="white",
     line=dict(color="black", width=3),
