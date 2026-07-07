@@ -1163,7 +1163,7 @@ print("Points cols: ['Alm','Sps','Prp','Grs']")
 
 legend_text = (
     "<span style='font-size:40px; font-weight:bold;'>Garnet Provenance Groups</span><br>"
-    "<span style='font-size:26px; font-style:italic;'>Classification based on standardized Mahalanobis distance using a diagonal covariance matrix</span><br><br>"
+    "<span style='font-size:18px; font-style:italic;'>Classification based on standardized Mahalanobis distance using a diagonal covariance matrix</span><br><br>"
     f"<span style='font-size:30px;'>Locality: {df_parameters['Locality'].iloc[0] if 'Locality' in df_parameters.columns else 'not specified'}</span><br><br>"
 )
 
