@@ -1,81 +1,23 @@
-# This script constructs a Cantor diagram for the garnet endmember system
-# almandine–spessartine–pyrope–grossular. Scattered provenance fields
-# (±1 standard deviation ranges), derived primarily from Suggate and Hall (2014),
-# are displayed. The script allows plotting garnet compositions
-# onto the diagram and assigns each data point to the most likely provenance
-# field. Provenance assignment is computed statistically via Mahalanobis distance using subfield means and standard
-# deviations.
 
-
-import streamlit as st
+import itertools
+import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
-import numpy as np
+import streamlit as st
 
-st.set_page_config(layout="wide")
+st.set_page_config(layout="wide", page_title="Cantor Grids")
 
-st.title("Cantor Diagram – Garnet Provenance Classification")
-
-st.markdown("""
-**Required column order:**  
-1. Almandine   
-2. Spessartine   
-3. Pyrope   
-4. Grossular  
-5. Locality
-
-**A template Excel file (garnet_examples_streamlit.xlsx) is available online at the following link. It shows the required column order and data format.  
-https://github.com/knierzy/cantor_grids/blob/main/data/garnet_examples_streamlit.xlsx
-
-If you use this application in scientific work, please cite:
-
-Knierzinger, W., Forstner, S. J., Eder, A. (2026). Cantor grids: A new 2D visualization framework for four-parameter compositional datasets in geochemistry and soil science. 
-Journal of Geochemical Exploration 289, 108129. https://doi.org/10.1016/j.gexplo.2026.108129
-""")
-
-uploaded_file = st.file_uploader(
-    "Upload Excel file (.xlsx)",
-    type=["xlsx"]
+st.title("Cantor Grids – Four-Parameter Compositional Visualization")
+st.caption(
+    "Define four compositional parameters, create subgroup fields from parameter ranges, "
+    "and upload your own four-parameter dataset."
 )
 
-if uploaded_file is None:
-    st.stop()
+# ============================================================
+# Core Cantor-grid geometry
+# ============================================================
 
-convex_hulls_file_4 = "data/convex_hull_amphibolites_general.xlsx"
-convex_hulls_file_5 = "data/convex_hull_greenschists_.xlsx"
-convex_hulls_file_6 = "data/convex_hull_granites_.xlsx"
-convex_hulls_file_7 = "data/convex_hull_blueschists_.xlsx"
-convex_hulls_file_8 = "data/convex_hull_calc_silicate_rocks_.xlsx"
-convex_hulls_file_9 = "data/convex_hull_granulites_general.xlsx"
-convex_hulls_file_11 = "data/convex_hull_eclogites_.xlsx"
-convex_hulls_file_12 = "data/convex_hull_ultramafic_.xlsx"
-
-# color mappings
-color_mapping_files = {
-    convex_hulls_file_5: "rgba(144, 238, 144, 0.9)",  # Greenschists - light green
-    convex_hulls_file_4: "rgba(75, 50, 35, 0.9)",  # Amphibolites - black
-    convex_hulls_file_11: "rgba(0, 100, 0, 0.9)",  # Eclogites - dark green
-    convex_hulls_file_7: "rgba(0, 0, 255, 0.9)",  # Blueschists - blue
-    convex_hulls_file_8: "rgba(64, 224, 208, 0.9)",  # Calc-Silicate Rocks - turquoise
-    convex_hulls_file_6: "rgba(255, 215, 0, 0.9)",  # Granites - yellow
-    convex_hulls_file_9: "rgba(255, 140, 0, 0.9)",  # Granulites General - orange
-    convex_hulls_file_12: "rgba(205, 92, 92, 0.9)"  # Ultramafic - brick red
-}
-
-# legend mapping
-legend_mapping = {
-    convex_hulls_file_6: "Granites & Pegmatites",
-    convex_hulls_file_5: "Greenschists",
-    convex_hulls_file_4: "Amphibolites",
-    convex_hulls_file_7: "Blueschists",
-    convex_hulls_file_8: "Calc-silicate rocks",
-    convex_hulls_file_9: "Granulites",
-    convex_hulls_file_11: "Eclogites",
-    convex_hulls_file_12: "Ultramafic rocks"
-}
-
-# Rectangle data with the classification system up to AB1
-rechtecke = [
+RECTANGLES = [
     (0, 100, "AB99"), (100, 99, "AB98"), (199, 98, "AB97"), (297, 97, "AB96"), (394, 96, "AB95"),
     (490, 95, "AB94"), (585, 94, "AB93"), (679, 93, "AB92"), (772, 92, "AB91"), (864, 91, "AB90"),
     (955, 90, "AB89"), (1045, 89, "AB88"), (1134, 88, "AB87"), (1222, 87, "AB86"), (1309, 86, "AB85"),
@@ -98,1211 +40,938 @@ rechtecke = [
     (5035, 5, "AB4"), (5040, 4, "AB3"), (5044, 3, "AB2"), (5047, 2, "AB1")
 ]
 
-# Set up diagram
-fig = go.Figure()
-
-# normalization LRM
-def normalize_to_100_LRM(row):
-    cols = ['Alm', 'Prp', 'Grs', 'Sps']
-    values = row[cols].astype(float).to_numpy()
-
-    ints = np.floor(values).astype(int)
-    remainders = values - ints
-    missing = 100 - ints.sum()
-
-    if missing > 0:
-        order = np.argsort(-remainders)
-        for i in range(missing):
-            ints[order[i]] += 1
-
-    elif missing < 0:
-        order = np.argsort(remainders)
-        for i in range(-missing):
-            ints[order[i]] -= 1
-
-    row[cols] = ints
-    return row
-
-
-def ensure_transparency(color, alpha=0.7):
-    if "rgba" in color:
-        return color[:color.rfind(",")] + f", {alpha})"
-    elif color.startswith("#"):
-        r = int(color[1:3], 16)
-        g = int(color[3:5], 16)
-        b = int(color[5:7], 16)
-        return f"rgba({r}, {g}, {b}, {alpha})"
-    else:
-        return f"rgba(0, 0, 0, {alpha})"
-
-
-def add_rechtecke_mit_farbverlauf(rechtecke, x_offset, spiegeln=False):
-    for i, (y_position, hoehe, label) in enumerate(rechtecke):
-        breite = i + 1
-        gradient_steps = 5 if i >= 90 else 10
-
-        grau_start = 200
-        grau_ende = 230
-
-        for step in range(gradient_steps):
-            grau_wert = int(grau_start + (grau_ende - grau_start) * (step / (gradient_steps - 1)))
-            alpha = 0.8 - (0.6 * (step / (gradient_steps - 1)))
-            color = f'rgba({grau_wert}, {grau_wert}, {grau_wert}, {alpha})'
-
-            y_start = y_position + (step / gradient_steps) * hoehe
-            y_end = y_position + ((step + 1) / gradient_steps) * hoehe
-
-            if spiegeln:
-                x_start, x_end = x_offset - breite, x_offset
-            else:
-                x_start, x_end = x_offset, x_offset + breite
-
-            fig.add_trace(go.Scatter(
-                x=[x_start, x_start, x_end, x_end, x_start],
-                y=[y_start, y_end, y_end, y_start, y_start],
-                fill="toself",
-                mode="none",
-                fillcolor=color,
-                hoverinfo="skip",
-                showlegend=False
-))
-
-        for x_pos in range(1, breite):
-            x_val = x_offset - x_pos if spiegeln else x_offset + x_pos
-            fig.add_trace(go.Scatter(
-                x=[x_val, x_val],
-               y=[y_position, y_position + hoehe],
-               mode="lines",
-                line=dict(color="gray", width=2),
-                 showlegend=False
-           ))
-
-# === Create axis labels 
-x_labels = {
+X_LABELS = {
     50: "AB99", 440: "AB95", 915: "AB90", 1350: "AB85",
     1760: "AB80", 2158: "AB75", 2540: "AB70",
     2870: "AB65", 3195: "AB60", 3480: "AB55",
     3755: "AB50", 3995: "AB45", 4209: "AB40",
     4405: "AB35", 4570: "AB30", 4830: "AB20",
+    4990: "AB10", 5046: "AB01"
 }
 
-# === Update X-axis with labels ===
-fig.update_layout(
-    xaxis=dict(
-        title="Summe A + B (%)",
-        tickvals=list(x_labels.keys()),
-        ticktext=[
-            f"{ab}<br>CD{str(100 - int(ab[2:])).zfill(2)}"
-            for ab in x_labels.values()
-        ],
-        tickangle=0,
-    )
-)
-
-# Add rectangles
-add_rechtecke_mit_farbverlauf(rechtecke, 0)
-
-
-if uploaded_file is not None:
-
-    # uploaded Excel file
-    df_uploaded = pd.read_excel(uploaded_file)
-
-
-
-if df_uploaded.shape[1] < 4:
-    st.error("Excel file must contain at least 4 columns.")
-    st.stop()
-
-df_parameters = pd.DataFrame({
-
-    "Alm": df_uploaded.iloc[:, 0],
-    "Sps": df_uploaded.iloc[:, 1],
-    "Prp": df_uploaded.iloc[:, 2],
-    "Grs": df_uploaded.iloc[:, 3]
-
-})
-
-# optionale Locality-Spalte
-if df_uploaded.shape[1] >= 5:
-    df_parameters["Locality"] = df_uploaded.iloc[:, 4]
-
-# Reihenfolge explizit fixieren
-ordered_cols = ["Alm", "Sps", "Prp", "Grs"]
-
-if "Locality" in df_parameters.columns:
-    ordered_cols.append("Locality")
-
-df_parameters = df_parameters[ordered_cols]
-
-colorbar_choice = st.selectbox(
-    "Select Color Scale",
-    [
-        "Plasma",
-        "Viridis",
-        "Turbo",
-        "Inferno",
-        "Cividis",
-        "RdYlBu",
-        "Custom"
-    ]
-)
-
-distance_method = "Mahalanobis"
-
-
-# POINT SIZE SLIDER
-
-
-point_size = st.slider(
-    "Select Point Size",
-    min_value=5,
-    max_value=40,
-    value=20,
-    step=1
-)
-
-outer_size = point_size
-halo_size = point_size - 2
-cutout_size = point_size * 0.08
-inner_size = point_size * 0.08
-center_size = point_size * 0.18
-
-
-df_parameters = df_parameters[
-    df_parameters.apply(
-        lambda row: row[['Alm','Sps','Prp','Grs']].sum() >= 98,
-        axis=1
-    )
+SUBGROUP_COLORS = [
+    "rgba(31,119,180,0.85)",
+    "rgba(255,127,14,0.85)",
+    "rgba(44,160,44,0.85)",
+    "rgba(214,39,40,0.85)",
+    "rgba(148,103,189,0.85)",
+    "rgba(140,86,75,0.85)",
+    "rgba(227,119,194,0.85)",
+    "rgba(127,127,127,0.85)",
+    "rgba(188,189,34,0.85)",
+    "rgba(23,190,207,0.85)"
 ]
 
 
- # optional: second dataset empty
-df_linz_params = pd.DataFrame(
-    columns=[
-        "Unnamed: 1",
-        "Unnamed: 2",
-        "Unnamed: 3",
-        "Unnamed: 4"
-    ]
-)
+def normalize_to_100_lrm(values):
+    arr = np.asarray(values, dtype=float)
+    if np.any(~np.isfinite(arr)) or np.any(arr < 0) or arr.sum() <= 0:
+        raise ValueError("All parameter values must be finite, non-negative, and have a positive sum.")
+
+    scaled = arr / arr.sum() * 100.0
+    ints = np.floor(scaled).astype(int)
+    rem = scaled - ints
+    missing = int(100 - ints.sum())
+
+    if missing > 0:
+        for idx in np.argsort(-rem)[:missing]:
+            ints[idx] += 1
+    elif missing < 0:
+        for idx in np.argsort(rem)[:abs(missing)]:
+            if ints[idx] > 0:
+                ints[idx] -= 1
+
+    return ints
 
 
-if not df_linz_params.empty:
-    df_linz_params = df_linz_params.astype(float).round().astype(int)
-    df_linz_params = df_linz_params.apply(normalize_to_100_LRM, axis=1)
+def calculate_raw_position(a, b, c, d):
+    """
+    Original (pre-rotation) Cantor coordinates.
+    x = C
+    y = row start determined by A+B, plus B.
+    """
+    if int(a + b + c + d) != 100:
+        return None, None
 
-df_linz_params = df_linz_params.apply(normalize_to_100_LRM, axis=1)
+    ab = int(a + b)
+    ab_index = 99 - ab
 
+    if ab_index < 0 or ab_index >= len(RECTANGLES):
+        return None, None
 
-
-
-df_parameters = df_parameters.apply(normalize_to_100_LRM, axis=1)
-
-
-
-# Calculate AB (A + B) for the y-position
-df_parameters['AB'] = df_parameters['Alm'] + df_parameters['Sps']
-
-
-# Calculate the y-position based on AB and B
-def calculate_y_position(ab_value, b_value):
-    ab_index = 99 - int(ab_value)
-    if ab_index >= 0 and ab_index < len(rechtecke):
-        start_zeile = rechtecke[ab_index][0]
-        hoehe = rechtecke[ab_index][1]
-        y_position = start_zeile + b_value + 0.5
-        return y_position
-    return None
-
-# Legend
-legende_text = "<b>Garnet Provenance Groups</b><br>"
+    row_start, _, _ = RECTANGLES[ab_index]
+    return float(c), float(row_start + b + 0.5)
 
 
-#  Manually ordered list of convex hulls in the legend
-ordered_hulls = [
-    convex_hulls_file_5,
-    convex_hulls_file_4,
-    convex_hulls_file_7,
-    convex_hulls_file_9,
-    convex_hulls_file_11,
-    convex_hulls_file_6,
-    convex_hulls_file_12,
-    convex_hulls_file_8,
-]
-
-# Prepare legend text
-legende_text += ""
-for file_path in ordered_hulls:
-    color = color_mapping_files[file_path]
-    hull_name = legend_mapping.get(file_path, file_path.split("\\")[-1].split(".")[0])
-    legende_text += f'<span style="color:{color};">■</span> {hull_name}<br>'
+def calculate_final_position(a, b, c, d):
+    # The original garnet script rotates all traces at the end.
+    raw_x, raw_y = calculate_raw_position(a, b, c, d)
+    if raw_x is None:
+        return None, None
+    return raw_y, raw_x
 
 
-# List to group points by origin and rectangle (AB)
-grouped_points = {}
+def add_gray_cantor_grid(fig):
+    """
+    Reproduces the gray triangular Cantor-grid domain from the original garnet app.
+    Coordinates are added directly in final (rotated) orientation.
+    """
+    for i, (row_start, height, label) in enumerate(RECTANGLES):
+        width = i + 1
+        gradient_steps = 5 if i >= 90 else 10
 
-# Load convex hull data
-df_hulls_4 = pd.read_excel(convex_hulls_file_4)
-df_hulls_5 = pd.read_excel(convex_hulls_file_5)
-df_hulls_6 = pd.read_excel(convex_hulls_file_6)
-df_hulls_7 = pd.read_excel(convex_hulls_file_7)
-df_hulls_8 = pd.read_excel(convex_hulls_file_8)
-df_hulls_9 = pd.read_excel(convex_hulls_file_9)
-df_hulls_11 = pd.read_excel(convex_hulls_file_11)
-df_hulls_12 = pd.read_excel(convex_hulls_file_12)
+        gray_start = 200
+        gray_end = 230
 
-# Combine the files
-df_hulls_combined = pd.concat([
-    df_hulls_4, df_hulls_5, df_hulls_6, df_hulls_7,
-    df_hulls_8, df_hulls_9, df_hulls_11, df_hulls_12
-])
+        for step in range(gradient_steps):
+            gray = int(gray_start + (gray_end - gray_start) * (step / max(gradient_steps - 1, 1)))
+            alpha = 0.8 - (0.6 * (step / max(gradient_steps - 1, 1)))
+            fill = f"rgba({gray},{gray},{gray},{alpha})"
 
-# Groups of hull data based on origin and AB value
-grouped_hulls_combined = df_hulls_combined.groupby(["Herkunft", "AB_Value"])
+            raw_y0 = row_start + (step / gradient_steps) * height
+            raw_y1 = row_start + ((step + 1) / gradient_steps) * height
 
+            # raw rectangle was x=[0,width], y=[raw_y0,raw_y1]
+            # after original rotation: x<-raw_y, y<-raw_x
+            fig.add_trace(
+                go.Scatter(
+                    x=[raw_y0, raw_y1, raw_y1, raw_y0, raw_y0],
+                    y=[0, 0, width, width, 0],
+                    fill="toself",
+                    mode="none",
+                    fillcolor=fill,
+                    hoverinfo="skip",
+                    showlegend=False
+                )
+            )
 
-# Function to plot convex hulls with different colors based on source file
-def plot_imported_hulls_with_file_colors(grouped_hulls, file_color_mapping):
-    for (herkunft, ab_value), group in grouped_hulls:
-        hull_x = group["X"].values
-        hull_y = group["Y"].values
-
-        hull_x = np.append(hull_x, hull_x[0])
-        hull_y = np.append(hull_y, hull_y[0])
-
-        # Determine the color based on the source file
-        file_source = group["file_source"].iloc[0]
-        color = file_color_mapping.get(file_source, "rgba(0, 0, 0, 0.5)")
-
-        # Plot  convex hull
-        fig.add_trace(go.Scatter(
-            x=hull_x,
-            y=hull_y,
-            mode="lines",
-            line=dict(color=color, width=1.5),
-            fill="toself",
-            fillcolor=ensure_transparency(color, alpha=0.4),
-            name=f"Herkunft: {herkunft}, AB: {ab_value}"
-        ))
+        # Internal grid lines (the original vertical lines become horizontal after rotation)
+        for raw_x in range(1, width):
+            fig.add_trace(
+                go.Scatter(
+                    x=[row_start, row_start + height],
+                    y=[raw_x, raw_x],
+                    mode="lines",
+                    line=dict(color="rgba(100,100,100,0.65)", width=0.8),
+                    hoverinfo="skip",
+                    showlegend=False
+                )
+            )
 
 
-def plot_linz_scatter(df):
-    x_vals = []
-    y_vals = []
+def build_subgroup_points(ranges):
+    """
+    Constrained Cartesian product:
+    all integer A/B/C/D combinations inside the four ranges with A+B+C+D = 100.
+    """
+    (amin, amax), (bmin, bmax), (cmin, cmax), (dmin, dmax) = ranges
+    rows = []
 
-    for _, row in df.iterrows():
-        a = int(row['Unnamed: 1'])
-        b = int(row['Unnamed: 2'])
-        c = int(row['Unnamed: 3'])
+    # Faster than a full 4-D product: D follows from the closure constraint.
+    for a in range(amin, amax + 1):
+        for b in range(bmin, bmax + 1):
+            ab = a + b
+            if ab < 1 or ab > 99:
+                continue
+            for c in range(cmin, cmax + 1):
+                d = 100 - a - b - c
+                if d < dmin or d > dmax:
+                    continue
 
-        ab = a + b
+                x, y = calculate_final_position(a, b, c, d)
+                if x is not None:
+                    rows.append((a, b, c, d, ab, x, y))
 
-        y_pos = calculate_y_position(ab, b)
-        if y_pos is None:
+    return pd.DataFrame(rows, columns=["A", "B", "C", "D", "AB", "x", "y"])
+
+
+def convex_hull_2d(points):
+    """
+    Monotonic-chain convex hull; avoids an additional scipy dependency.
+    Returns hull vertices in order.
+    """
+    pts = sorted(set((float(x), float(y)) for x, y in points))
+    if len(pts) <= 2:
+        return pts
+
+    def cross(o, a, b):
+        return (a[0]-o[0]) * (b[1]-o[1]) - (a[1]-o[1]) * (b[0]-o[0])
+
+    lower = []
+    for p in pts:
+        while len(lower) >= 2 and cross(lower[-2], lower[-1], p) <= 0:
+            lower.pop()
+        lower.append(p)
+
+    upper = []
+    for p in reversed(pts):
+        while len(upper) >= 2 and cross(upper[-2], upper[-1], p) <= 0:
+            upper.pop()
+        upper.append(p)
+
+    return lower[:-1] + upper[:-1]
+
+
+def rgba_with_alpha(rgba, alpha):
+    parts = rgba.replace("rgba(", "").replace(")", "").split(",")
+    return f"rgba({parts[0]},{parts[1]},{parts[2]},{alpha})"
+
+
+def add_subgroup_fields(fig, subgroup_results):
+    """
+    Draw subgroup fields as colored rectangular outlines only.
+
+    For every AB slice, the valid constrained Cartesian-product compositions
+    define a rectangular subfield in the final Cantor-grid coordinates.
+    No colored subgroup points are plotted.
+    """
+    for idx, sg in enumerate(subgroup_results):
+        pts = sg["points"]
+        if pts.empty:
             continue
 
-        x_vals.append(c)
-        y_vals.append(y_pos)
+        color = SUBGROUP_COLORS[idx % len(SUBGROUP_COLORS)]
+        fill = rgba_with_alpha(color, 0.015)
+        first_trace = True
 
-    fig.add_trace(go.Scatter(
-        x=x_vals,
-        y=y_vals,
-        mode="markers",
-        marker=dict(
-            size=14,
-            color="red",
-            symbol="x",
-            line=dict(color="black", width=1)
-        ),
-        name="Linz/Melk"
-    ))
+        for ab, group in pts.groupby("AB"):
+            x_min = float(group["x"].min()) - 0.45
+            x_max = float(group["x"].max()) + 0.45
+            y_min = float(group["y"].min()) - 0.45
+            y_max = float(group["y"].max()) + 0.45
 
-# Add a column to the DataFrames to mark the source file
-
-df_hulls_4["file_source"] = convex_hulls_file_4
-df_hulls_5["file_source"] = convex_hulls_file_5
-df_hulls_6["file_source"] = convex_hulls_file_6
-df_hulls_7["file_source"] = convex_hulls_file_7
-df_hulls_8["file_source"] = convex_hulls_file_8
-df_hulls_9["file_source"] = convex_hulls_file_9
-df_hulls_11["file_source"] = convex_hulls_file_11
-df_hulls_12["file_source"] = convex_hulls_file_12
-
-# Combine the DataFrames
-df_hulls_combined = pd.concat([df_hulls_4, df_hulls_5,df_hulls_6,df_hulls_7,df_hulls_8,df_hulls_9, df_hulls_11, df_hulls_12])
-
-# Group the combined data
-grouped_hulls_combined = df_hulls_combined.groupby(["Herkunft", "AB_Value"])
-
-# Plot the imported convex hulls with file-specific colors
-
-plot_imported_hulls_with_file_colors(grouped_hulls_combined, color_mapping_files)
+            # Colored rectangular subfield, matching the garnet-style display.
+            fig.add_trace(
+                go.Scatter(
+                    x=[x_min, x_min, x_max, x_max, x_min],
+                    y=[y_min, y_max, y_max, y_min, y_min],
+                    mode="lines",
+                    line=dict(color=color, width=2.4),
+                    fill="toself",
+                    fillcolor=fill,
+                    name=sg["name"],
+                    legendgroup=sg["name"],
+                    showlegend=first_trace,
+                    hovertemplate=(
+                        f"<b>{sg['name']}</b><br>"
+                        f"AB = {int(ab)}<br>"
+                        f"A: {int(group['A'].min())}–{int(group['A'].max())}%<br>"
+                        f"B: {int(group['B'].min())}–{int(group['B'].max())}%<br>"
+                        f"C: {int(group['C'].min())}–{int(group['C'].max())}%<br>"
+                        f"D: {int(group['D'].min())}–{int(group['D'].max())}%"
+                        "<extra></extra>"
+                    )
+                )
+            )
+            first_trace = False
 
 
 
-if not df_linz_params.empty:
-    df_linz_params['Ratio'] = (
-        df_linz_params['Unnamed: 1']
-        /
-        (df_linz_params['Unnamed: 1'] + df_linz_params['Unnamed: 2'])
-    )
+def subgroup_statistics_from_generated(subgroup_results):
+    """
+    Calculate mean compositions and standard deviations for each subgroup
+    from all valid integer compositions generated from its parameter ranges.
 
-# Calculate the ratio for color coding
-df_parameters['Ratio'] = (
-    df_parameters['Alm']
-    /
-    (df_parameters['Alm'] + df_parameters['Sps'])
-)
+    These statistics define the diagonal-covariance Mahalanobis approximation.
+    """
+    means = {}
+    sigmas = {}
 
-custom_colorscale = [
-    [0.0,  "#00007F"],   
-    [0.20, "#007FFF"],  
-    [0.40, "#00FFFF"],   
-    [0.60, "#FFFF80"],   
-    [0.80, "#FF9F40"],   
-    [1.0,  "#FF4040"]    
+    for sg in subgroup_results:
+        pts = sg["points"]
+
+        if pts.empty:
+            continue
+
+        comp = pts[["A", "B", "C", "D"]].astype(float)
+
+        means[sg["name"]] = comp.mean(axis=0).to_numpy()
+
+        # ddof=1 when possible; replace undefined/zero values below.
+        if len(comp) > 1:
+            sigma = comp.std(axis=0, ddof=1).to_numpy()
+        else:
+            sigma = np.zeros(4, dtype=float)
+
+        # Same practical safeguard as in the garnet application:
+        # avoid singular/infinite weighting for extremely narrow ranges.
+        sigma = np.where(np.isfinite(sigma), sigma, 0.0)
+        sigma = np.clip(sigma, 0.5, None)
+
+        sigmas[sg["name"]] = sigma
+
+    return means, sigmas
+
+
+def classify_diagonal_mahalanobis(df_input, subgroup_results):
+    """
+    Assign every uploaded composition to the closest subgroup using
+    Mahalanobis distance with a diagonal covariance approximation:
+
+        d = sqrt(sum(((x_i - mu_i) / sigma_i)^2))
+
+    Means and sigmas are calculated from each subgroup's constrained
+    Cartesian product (A+B+C+D=100).
+    """
+    means, sigmas = subgroup_statistics_from_generated(subgroup_results)
+
+    labels_out = []
+    distances_out = []
+
+    if not means:
+        df_input["Nearest_Subfield"] = "Unclassified"
+        df_input["Mahalanobis_Distance"] = np.nan
+        return df_input, means, sigmas
+
+    X = df_input[["A", "B", "C", "D"]].astype(float).to_numpy()
+
+    for x in X:
+        best_label = None
+        best_distance = np.inf
+
+        for name, mu in means.items():
+            sigma = sigmas[name]
+            d = float(np.sqrt(np.sum(((x - mu) / sigma) ** 2)))
+
+            if d < best_distance:
+                best_distance = d
+                best_label = name
+
+        labels_out.append(best_label)
+        distances_out.append(best_distance)
+
+    df_input["Nearest_Subfield"] = labels_out
+    df_input["Mahalanobis_Distance"] = distances_out
+
+    return df_input, means, sigmas
+
+
+def classification_summary(df_input, subgroup_results):
+    """
+    Return count and percentage for every defined subgroup.
+    """
+    subgroup_names = [
+        sg["name"] for sg in subgroup_results if not sg["points"].empty
+    ]
+
+    counts = df_input["Nearest_Subfield"].value_counts()
+    n = len(df_input)
+
+    rows = []
+    for name in subgroup_names:
+        count = int(counts.get(name, 0))
+        pct = (count / n * 100.0) if n else 0.0
+        rows.append({
+            "Subgroup": name,
+            "Points": count,
+            "Percent": round(pct, 1)
+        })
+
+    return pd.DataFrame(rows)
+
+
+def read_uploaded_dataset(uploaded_file, labels):
+    df = pd.read_excel(uploaded_file)
+    generic = ["A", "B", "C", "D"]
+
+    if all(label in df.columns for label in labels):
+        data = df[labels].copy()
+        data.columns = generic
+    elif all(col in df.columns for col in generic):
+        data = df[generic].copy()
+    elif df.shape[1] >= 4:
+        data = df.iloc[:, :4].copy()
+        data.columns = generic
+    else:
+        raise ValueError("The Excel file must contain at least four parameter columns.")
+
+    if "Locality" in df.columns:
+        data["Locality"] = df["Locality"].astype(str)
+    elif df.shape[1] >= 5:
+        data["Locality"] = df.iloc[:, 4].astype(str)
+    else:
+        data["Locality"] = [f"Sample {i+1}" for i in range(len(data))]
+
+    norm = np.vstack([normalize_to_100_lrm(row) for row in data[generic].to_numpy()])
+    data[generic] = norm
+
+    coords = [calculate_final_position(*row) for row in data[generic].to_numpy()]
+    data["x"] = [p[0] for p in coords]
+    data["y"] = [p[1] for p in coords]
+
+    return data
+
+
+def classify_by_ranges(row, subgroup_defs):
+    hits = []
+    vals = [row["A"], row["B"], row["C"], row["D"]]
+
+    for sg in subgroup_defs:
+        if all(sg["ranges"][i][0] <= vals[i] <= sg["ranges"][i][1] for i in range(4)):
+            hits.append(sg["name"])
+
+    return ", ".join(hits) if hits else "Unclassified"
+
+
+# ============================================================
+# 1. Parameter names
+# ============================================================
+
+st.header("1. Define parameter names")
+
+c1, c2, c3, c4 = st.columns(4)
+with c1:
+    label_a = st.text_input("Parameter A", "Sand")
+with c2:
+    label_b = st.text_input("Parameter B", "Silt")
+with c3:
+    label_c = st.text_input("Parameter C", "Clay")
+with c4:
+    label_d = st.text_input("Parameter D", "Organic matter")
+
+labels = [
+    label_a.strip() or "A",
+    label_b.strip() or "B",
+    label_c.strip() or "C",
+    label_d.strip() or "D"
 ]
 
-if colorbar_choice == "Custom":
-    selected_colorscale = custom_colorscale
+if len(set(labels)) != 4:
+    st.error("The four parameter names must be different.")
+    st.stop()
+
+
+# ============================================================
+# 2. Subgroup definition
+# ============================================================
+
+st.header("2. Define subgroup fields")
+
+definition_mode = st.radio(
+    "Subgroup definition mode",
+    ["Manual input", "Upload Excel file"],
+    horizontal=True
+)
+
+subgroup_defs = []
+
+if definition_mode == "Manual input":
+
+    if "subgroup_count_v3" not in st.session_state:
+        st.session_state.subgroup_count_v3 = 1
+
+    b1, b2, _ = st.columns([1, 1, 4])
+
+    with b1:
+        if st.button("+ Add subgroup"):
+            st.session_state.subgroup_count_v3 += 1
+            st.rerun()
+
+    with b2:
+        if st.button("− Remove last subgroup") and st.session_state.subgroup_count_v3 > 1:
+            st.session_state.subgroup_count_v3 -= 1
+            st.rerun()
+
+    for i in range(st.session_state.subgroup_count_v3):
+        with st.expander(f"Subgroup {i+1}", expanded=True):
+            name = st.text_input(
+                "Subgroup name",
+                f"Subgroup {i+1}",
+                key=f"name_v3_{i}"
+            )
+
+            ranges = []
+            for j, label in enumerate(labels):
+                left, right = st.columns(2)
+                with left:
+                    lo = st.number_input(
+                        f"{label} minimum",
+                        min_value=0,
+                        max_value=100,
+                        value=0,
+                        step=1,
+                        key=f"lo_v3_{i}_{j}"
+                    )
+                with right:
+                    hi = st.number_input(
+                        f"{label} maximum",
+                        min_value=0,
+                        max_value=100,
+                        value=100,
+                        step=1,
+                        key=f"hi_v3_{i}_{j}"
+                    )
+                ranges.append((int(lo), int(hi)))
+
+            sum_min = sum(r[0] for r in ranges)
+            sum_max = sum(r[1] for r in ranges)
+
+            if sum_min > 100 or sum_max < 100:
+                st.error(
+                    f"No 100% composition is possible: sum of minima = {sum_min}%, "
+                    f"sum of maxima = {sum_max}%."
+                )
+            else:
+                st.success(
+                    f"Range check OK: minima sum to {sum_min}% and maxima to {sum_max}%."
+                )
+
+            subgroup_defs.append({
+                "name": name.strip() or f"Subgroup {i+1}",
+                "ranges": ranges
+            })
+
 else:
-    selected_colorscale = colorbar_choice
+    st.markdown("""
+Upload an Excel file containing one subgroup per row.
 
-# List to store values for the color legend
-x_values, y_values, color_values = [], [], []
-symbols = []   
+**Required columns:**
 
-# = Pernegg =
-for idx, row in df_parameters.iterrows():
-    a = row['Alm']
-    b = row['Sps']
-    c = row['Prp']
-    ab_value = row['AB']
-    ratio = row['Ratio']
+`Subgroup | A_min | A_max | B_min | B_max | C_min | C_max | D_min | D_max`
 
-    y_position_punkt = calculate_y_position(ab_value, b)
-    if y_position_punkt is not None:
-        x_values.append(c)
-        y_values.append(y_position_punkt)
-        color_values.append(ratio)
-        symbols.append("circle")   
+Example:
 
-# = Linz/Melk =
-for _, row in df_linz_params.iterrows():
-    a = row['Unnamed: 1']
-    b = row['Unnamed: 2']
-    c = row['Unnamed: 3']
-    ratio = row['Ratio']
+| Subgroup | A_min | A_max | B_min | B_max | C_min | C_max | D_min | D_max |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Sandy | 55 | 75 | 10 | 30 | 5 | 20 | 2 | 10 |
+| Loamy | 30 | 50 | 25 | 45 | 15 | 30 | 3 | 10 |
+| Clayey | 15 | 35 | 20 | 40 | 35 | 55 | 3 | 10 |
 
-    y_position_punkt = calculate_y_position(a + b, b)
-    if y_position_punkt is not None:
-        x_values.append(c)
-        y_values.append(y_position_punkt)
-        color_values.append(ratio)
-        symbols.append("x")
+The letters A–D refer to the parameter names defined above.
+""")
 
-
-
-x_vals = np.array(x_values)
-y_vals = np.array(y_values)
-ratios = np.array(color_values)
-symbols_arr = np.array(symbols)
-
-mask_circle = symbols_arr == "circle"
-mask_cross = symbols_arr == "x"
-
-
-#  CIRCLES (Pernegg)
-
-
-# 1. Outer black ring
-fig.add_trace(go.Scatter(
-    x=x_vals[mask_circle],
-    y=y_vals[mask_circle],
-    mode="markers",
-    marker=dict(
-        symbol="circle",
-        size=outer_size,
-        color="rgba(0,0,0,0)",
-        line=dict(color="black", width=4)
-    ),
-    text=[
-        f"Locality: {loc}<br>"
-        f"Alm: {alm:.0f}%<br>"
-        f"Sps: {sps:.0f}%<br>"
-        f"Prp: {prp:.0f}%<br>"
-        f"Grs: {grs:.0f}%<br>"
-        for alm, sps, prp, grs, loc
-        in zip(
-            df_parameters["Alm"],
-            df_parameters["Sps"],
-            df_parameters["Prp"],
-            df_parameters["Grs"],
-            df_parameters["Locality"]
-        )
-    ],
-    hovertemplate="%{text}<extra></extra>",
-    showlegend=False
-))
-
-# 2.Colored Halo
-fig.add_trace(go.Scatter(
-    x=x_vals[mask_circle],
-    y=y_vals[mask_circle],
-    mode="markers",
-    marker=dict(
-        symbol="circle",
-        size=halo_size,
-        color=ratios[mask_circle],
-        colorscale=selected_colorscale,
-        cmin=0,
-        cmax=1,
-        coloraxis="coloraxis",
-        opacity=0.9,
-        line=dict(width=0)
-    ),
-    hoverinfo="skip",
-    showlegend=False
-))
-
-# 3. White Cutout
-fig.add_trace(go.Scatter(
-    x=x_vals[mask_circle],
-    y=y_vals[mask_circle],
-    mode="markers",
-    marker=dict(
-        symbol="circle",
-        size=cutout_size,
-        color="white",
-        line=dict(width=0)
-    ),
-    hoverinfo="skip",
-    showlegend=False
-))
-
-# 4. Inner colored dot
-fig.add_trace(go.Scatter(
-    x=x_vals[mask_circle],
-    y=y_vals[mask_circle],
-    mode="markers",
-    marker=dict(
-        symbol="circle",
-        size=inner_size,
-        color=ratios[mask_circle],
-        colorscale=selected_colorscale,
-        cmin=0,
-        cmax=1,
-        line=dict(color="black", width=1)
-    ),
-    showlegend=False
-))
-
-# 5.  central point
-fig.add_trace(go.Scatter(
-    x=x_vals[mask_circle],
-    y=y_vals[mask_circle],
-    mode="markers",
-    marker=dict(
-        symbol="circle",
-        size=center_size,
-        color="black"
-    ),
-    hoverinfo="skip",
-    showlegend=False
-))
-
-
-# X (Linz/Melk)
-
-
-# 1. Black frame
-fig.add_trace(go.Scatter(
-    x=x_vals[mask_cross],
-    y=y_vals[mask_cross],
-    mode="markers",
-    marker=dict(
-        symbol="diamond",
-        size=21,
-        color=ratios[mask_cross],
-        colorscale=selected_colorscale,
-        cmin=0,
-        cmax=1,
-        coloraxis="coloraxis",
-        line=dict(width=3)   
-    ),
-    showlegend=False
-))
-
-# 2. halo 
-fig.add_trace(go.Scatter(
-    x=x_vals[mask_cross],
-    y=y_vals[mask_cross],
-    mode="markers",
-    marker=dict(
-        symbol="diamond",
-        size=18,
-        color=ratios[mask_cross],
-        colorscale=selected_colorscale,
-        cmin=0,
-        cmax=1,
-        coloraxis="coloraxis",
-        opacity=0.9,
-        line=dict(width=0)
-    ),
-    hoverinfo="skip",
-    showlegend=False
-))
-
-# 3.white Cutout
-fig.add_trace(go.Scatter(
-    x=x_vals[mask_cross],
-    y=y_vals[mask_cross],
-    mode="markers",
-    marker=dict(
-        symbol="diamond",
-        size=1,
-        color="white",
-        line=dict(width=0)
-    ),
-    hoverinfo="skip",
-    showlegend=False
-))
-
-# 4. Central point
-fig.add_trace(go.Scatter(
-    x=x_vals[mask_cross],
-    y=y_vals[mask_cross],
-    mode="markers",
-    marker=dict(
-        symbol="diamond",
-        size=1,
-        color=ratios[mask_cross],
-        colorscale=selected_colorscale,
-        cmin=0,
-        cmax=1,
-        line=dict(color="black", width=1)
-    ),
-    showlegend=False
-))
-
-# 5.  Central point
-fig.add_trace(go.Scatter(
-    x=x_vals[mask_cross],
-    y=y_vals[mask_cross],
-    mode="markers",
-    marker=dict(
-        symbol="circle",
-        size=3.5,
-        color="black"
-    ),
-    hoverinfo="skip",
-    showlegend=False
-))
-
-
-#  COLORBAR (global!)
-
-
-fig.update_layout(
-    coloraxis=dict(
-        colorscale=selected_colorscale,
-        cmin=0,
-        cmax=1,
-        colorbar=dict(
-            title="",
-            thickness=20,
-            len=0.9,
-            y=0.5,
-            yanchor="middle",
-            tickfont=dict(size=24)
-        )
-    )
-)
-
-
-# Adjust layout
-fig.update_layout(
-plot_bgcolor="white",
-    paper_bgcolor="white",
-    xaxis=dict(
-        title=dict(
-            text="Sum of Almandine (%) + Spessartine (%)",
-            font=dict(size=35, color="black", family="Arial Black")
-        ),
-        range=[0, rechtecke[-1][0] + rechtecke[-1][1]+ 20],
-        tickformat=".0f",
-        tickfont=dict(size=24, color="black"),
-        showgrid=False,
-        zeroline=False
-    ),
-    yaxis=dict(
-        title=dict(
-            text="Pyrope (%) /// Grossular (%) = height rectangle <sub>ABCD</sub> − Pyrope (%)",
-            font=dict(size=28, color="black", family="Arial Black")
-        ),
-        range=[0, 100],
-        constrain="domain",
-        tickformat=".0f",
-        dtick=10,
-        tickfont=dict(size=24, color="black"),
-        linecolor="gray",
-        showgrid=False,
-        zeroline=False
-    ),
-    autosize=False,
-    width=2260,
-    height=1210,
-    margin=dict(l=0, r=5, t=20, b=5),
-    showlegend=False
-)
-
-# Values for dashed lines
-y_values = [ 10, 20, 30, 40, 50, 60, 70, 80, 90 ]
-
-# Insert horizontal dashed lines
-for y in y_values:
-    fig.add_shape(
-        type="line",
-        x0=0, #
-        x1=max(df_parameters['Grs']) + rechtecke[-1][0] + rechtecke[-1][1],  # Ending point of the line on the X-axis (right edge)
-        y0=y,
-        y1=y,
-        line=dict(
-            color="black",
-            width=0.5,
-            dash="dash"
-        )
+    subgroup_file = st.file_uploader(
+        "Upload subgroup definition file (.xlsx)",
+        type=["xlsx"],
+        key="subgroup_definition_uploader"
     )
 
-# Positions for the vertical dashed lines
-x_values = [909.5, 3749.5, 4569.5, 1769.5, 2529.5, 3189.5, 4209.5, 4850.5, 4995.5, 442, 1352, 2162, 2872, 3482, 3992, 4402, 4712, 4922, 5037.5]  # central positions of AB90, AB50, AB30
+    if subgroup_file is not None:
+        try:
+            sg_df = pd.read_excel(subgroup_file)
 
-# Insert vertical dashed lines
-for x in x_values:
-    fig.add_shape(
-        type="line",
-        x0=x,
-        x1=x,
-        y0=0,
-        y1=100,
-        line=dict(
-            color="black",
-            width=1,
-            dash="dash"
+            # Clean Excel column names (spaces / non-breaking spaces / capitalization)
+            sg_df.columns = (
+                sg_df.columns
+                .astype(str)
+                .str.replace("\u00a0", " ", regex=False)
+                .str.strip()
+            )
+
+            # Accept subgroup header case-insensitively
+            sg_df = sg_df.rename(columns={
+                c: "Subgroup"
+                for c in sg_df.columns
+                if c.strip().lower() == "subgroup"
+            })
+
+            required_cols = [
+                "Subgroup",
+                "A_min", "A_max",
+                "B_min", "B_max",
+                "C_min", "C_max",
+                "D_min", "D_max"
+            ]
+
+            missing_cols = [c for c in required_cols if c not in sg_df.columns]
+
+            if missing_cols:
+                st.error("Missing required columns: " + ", ".join(missing_cols))
+            else:
+                sg_df = sg_df[required_cols].copy()
+                numeric_cols = required_cols[1:]
+
+                for col in numeric_cols:
+                    sg_df[col] = pd.to_numeric(sg_df[col], errors="coerce")
+
+                if sg_df[numeric_cols].isna().any().any():
+                    st.error("At least one range value is missing or not numeric.")
+                else:
+                    invalid_rows = []
+
+                    for idx, row in sg_df.iterrows():
+                        name = str(row["Subgroup"]).strip()
+                        if not name or name.lower() == "nan":
+                            name = f"Subgroup {idx + 1}"
+
+                        ranges = [
+                            (int(row["A_min"]), int(row["A_max"])),
+                            (int(row["B_min"]), int(row["B_max"])),
+                            (int(row["C_min"]), int(row["C_max"])),
+                            (int(row["D_min"]), int(row["D_max"]))
+                        ]
+
+                        range_error = any(
+                            lo < 0 or hi > 100 or lo > hi
+                            for lo, hi in ranges
+                        )
+                        sum_min = sum(r[0] for r in ranges)
+                        sum_max = sum(r[1] for r in ranges)
+                        closure_error = sum_min > 100 or sum_max < 100
+
+                        if range_error or closure_error:
+                            invalid_rows.append(
+                                (idx + 2, name, sum_min, sum_max, range_error)
+                            )
+
+                        subgroup_defs.append({
+                            "name": name,
+                            "ranges": ranges
+                        })
+
+                    preview = sg_df.copy()
+                    preview.columns = [
+                        "Subgroup",
+                        f"{labels[0]} min", f"{labels[0]} max",
+                        f"{labels[1]} min", f"{labels[1]} max",
+                        f"{labels[2]} min", f"{labels[2]} max",
+                        f"{labels[3]} min", f"{labels[3]} max"
+                    ]
+
+                    st.success(f"{len(subgroup_defs)} subgroup(s) loaded.")
+                    st.dataframe(preview, use_container_width=True)
+
+                    for row_no, name, sum_min, sum_max, range_error in invalid_rows:
+                        if range_error:
+                            st.error(
+                                f"Row {row_no} ({name}): range values must satisfy "
+                                "0 ≤ minimum ≤ maximum ≤ 100."
+                            )
+                        if sum_min > 100 or sum_max < 100:
+                            st.error(
+                                f"Row {row_no} ({name}): no 100% composition is possible "
+                                f"(sum minima = {sum_min}%, sum maxima = {sum_max}%)."
+                            )
+
+        except Exception as exc:
+            st.error(f"Could not read subgroup definition file: {exc}")
+
+# ============================================================
+# 3. Generate subgroup fields automatically
+# ============================================================
+
+st.header("3. Generate subgroup fields")
+
+# Always regenerate from the currently visible/manual or uploaded range definitions.
+# This avoids stale Streamlit session-state data after switching input mode or
+# updating the app code.
+generated_subgroups = []
+
+for sg in subgroup_defs:
+    points = build_subgroup_points(sg["ranges"])
+    generated_subgroups.append({
+        "name": sg["name"],
+        "ranges": sg["ranges"],
+        "points": points
+    })
+
+if generated_subgroups:
+    summary = pd.DataFrame([
+        {
+            "Subgroup": sg["name"],
+            "Valid integer compositions": len(sg["points"]),
+            "AB slices": sg["points"]["AB"].nunique() if not sg["points"].empty else 0
+        }
+        for sg in generated_subgroups
+    ])
+
+    st.dataframe(summary, use_container_width=True)
+
+    empty = [sg["name"] for sg in generated_subgroups if sg["points"].empty]
+
+    if empty:
+        st.warning(
+            "No valid compositions summing to 100 were generated for: "
+            + ", ".join(empty)
         )
-    )
+else:
+    st.info("Define at least one valid subgroup field above.")
 
-# Rotate the plot by 90 degrees (swap X and Y data)
-for trace in fig.data:
-    trace.x, trace.y = trace.y, trace.x
+# ============================================================
+# 4. Upload
+# ============================================================
 
+st.header("4. Upload dataset")
 
+st.markdown(
+    f"""
+Excel columns can be either:
 
-x_min = -30
-x_max = rechtecke[-1][0] + rechtecke[-1][1]
+**A, B, C, D, Locality**
 
+or:
 
-fig.add_shape(
-    type="line",
-    x0=x_min,
-    x1=x_min,
-    y0=0,
-    y1=100,
-    line=dict(color="black", width=3)
+**{labels[0]}, {labels[1]}, {labels[2]}, {labels[3]}, Locality**
+"""
 )
 
-def classify_dataset(df_input, means, sigmas):
-
-    X_pts = df_input[["Alm","Sps","Prp","Grs"]].to_numpy()
-
-    labels = []
-    d_min  = []
-
-    sigmas_safe = sigmas.clip(lower=0.5)
-    invcovs = {
-        k: np.diag(1.0/(sigmas_safe.loc[k].to_numpy()**2))
-        for k in means.index
-    }
-
-    mus = {
-        k: means.loc[k].to_numpy()
-        for k in means.index
-    }
-
-    for x in X_pts:
-
-        best_label = None
-        best_d = np.inf
-
-        for k in means.index:
-
-            mu = mus[k]
-            VI = invcovs[k]
-
-            d2 = (x-mu) @ VI @ (x-mu).T
-
-            if d2 < best_d:
-                best_d = d2
-                best_label = k
-
-        labels.append(best_label)
-        d_min.append(np.sqrt(best_d))
-
-    df_input["Nearest_Subfield"] = labels
-    df_input["Mahalanobis_Distance"] = d_min
-
-    return df_input
+uploaded_file = st.file_uploader("Upload Excel file (.xlsx)", type=["xlsx"])
 
 
-def classify_dataset_logeuclidean(df_input, means):
+# ============================================================
+# 5. Plot settings
+# ============================================================
 
-    X_pts = df_input[["Alm","Sps","Prp","Grs"]].to_numpy()
+st.header("5. Plot settings")
 
-    labels = []
-    d_min = []
+pc1, pc2 = st.columns(2)
+with pc1:
+    point_size = st.slider("Sample point size", 3, 40, 7, 1)
+with pc2:
+    colorscale = st.selectbox(
+        "Sample color scale",
+        ["Plasma", "Viridis", "Turbo", "Inferno", "Cividis", "RdYlBu"]
+    )
 
-    mus = {
-        k: means.loc[k].to_numpy()
-        for k in means.index
-    }
-
-    for x in X_pts:
-
-        best_label = None
-        best_d = np.inf
-
-        x_log = np.log(x + 1)
-
-        for k in means.index:
-
-            mu_log = np.log(mus[k] + 1)
-
-            d = np.linalg.norm(x_log - mu_log)
-
-            if d < best_d:
-                best_d = d
-                best_label = k
-
-        labels.append(best_label)
-        d_min.append(best_d)
-
-    df_input["Nearest_Subfield_LogEuclidean"] = labels
-    df_input["LogEuclidean_Distance"] = d_min
-
-    return df_input
-
-def clr_transform(x):
-
-    x = np.asarray(x, dtype=float)
-
-    eps = 1e-6
-    x = x + eps
-
-    gm = np.exp(np.mean(np.log(x)))
-
-    return np.log(x / gm)
+show_subgroups = st.checkbox("Show subgroup fields", value=True)
+show_gray_grid = st.checkbox("Show gray Cantor grid", value=True)
 
 
-def classify_dataset_aitchison(df_input, means):
+# ============================================================
+# 6. Plot
+# ============================================================
 
-    X_pts = df_input[["Alm","Sps","Prp","Grs"]].to_numpy()
+if uploaded_file is not None:
+    try:
+        df = read_uploaded_dataset(uploaded_file, labels)
+    except Exception as exc:
+        st.error(str(exc))
+        st.stop()
 
-    labels = []
-    d_min = []
+    # Distance-based classification, analogous to the garnet application
+    df, subgroup_means, subgroup_sigmas = classify_diagonal_mahalanobis(
+        df,
+        generated_subgroups
+    )
 
-    # CLR-transformed means
-    mus_clr = {
-        k: clr_transform(means.loc[k].to_numpy())
-        for k in means.index
-    }
+    # Keep direct range-membership information as an additional diagnostic.
+    df["Inside_Range_Field"] = df.apply(
+        lambda r: classify_by_ranges(r, subgroup_defs),
+        axis=1
+    )
 
-    for x in X_pts:
+    # User-facing classification label
+    df["Subgroup"] = df["Nearest_Subfield"]
 
-        x_clr = clr_transform(x)
+    summary_df = classification_summary(df, generated_subgroups)
 
-        best_label = None
-        best_d = np.inf
+    fig = go.Figure()
 
-        for k in means.index:
+    # Background first
+    if show_gray_grid:
+        add_gray_cantor_grid(fig)
 
-            mu_clr = mus_clr[k]
+    # Reference grid lines
+    for y in range(10, 100, 10):
+        fig.add_shape(
+            type="line",
+            x0=0,
+            x1=RECTANGLES[-1][0] + RECTANGLES[-1][1] + 10,
+            y0=y,
+            y1=y,
+            line=dict(color="rgba(80,80,80,0.45)", width=0.8, dash="dash"),
+            layer="above"
+        )
 
-            d = np.linalg.norm(x_clr - mu_clr)
+    for x in [442, 909.5, 1352, 1769.5, 2162, 2529.5, 2872, 3189.5, 3482,
+              3749.5, 3992, 4209.5, 4402, 4569.5, 4712, 4850.5, 4922, 4995.5, 5037.5]:
+        fig.add_shape(
+            type="line",
+            x0=x, x1=x, y0=0, y1=100,
+            line=dict(color="rgba(80,80,80,0.55)", width=0.8, dash="dash"),
+            layer="above"
+        )
 
-            if d < best_d:
-                best_d = d
-                best_label = k
+    # User-defined subgroup fields over the gray grid
+    if show_subgroups and generated_subgroups:
+        nonempty_subgroups = [
+            sg for sg in generated_subgroups if not sg["points"].empty
+        ]
+        add_subgroup_fields(fig, nonempty_subgroups)
 
-        labels.append(best_label)
-        d_min.append(best_d)
+        if nonempty_subgroups:
+            st.caption(
+                "Subgroup fields drawn: "
+                + ", ".join(sg["name"] for sg in nonempty_subgroups)
+            )
 
-    df_input["Nearest_Subfield_Aitchison"] = labels
-    df_input["Aitchison_Distance"] = d_min
+    # Uploaded samples
+    ratio = df["A"] / (df["A"] + df["B"]).replace(0, np.nan)
+    ratio = ratio.fillna(0)
 
-    return df_input
-
-from scipy.stats import chi2
-import numpy as np
-
-# SUBFIELD MEANS
-
-subfield_means_raw = pd.DataFrame({
-    "alm": [
-        65.66982555,
-        54.31709145,
-        44.23111848,
-        48.07424294,
-        50.65111941,
-        23.87808719,
-        55.9267222,
-        21.02162502
-    ],
-
-    "prp": [
-        12.21280849,
-        33.69541824,
-        31.52675381,
-        3.214631984,
-        6.044688795,
-        57.81881319,
-        9.93239652,
-        3.069200646
-    ],
-
-    "grs": [
-        12.932808,
-        10.07050389,
-        23.08000919,
-        22.67389225,
-        2.962742713,
-        17.48481604,
-        24.99704974,
-        64.92615389
-    ],
-
-    "sps": [
-        9.18931335,
-        1.921986915,
-        1.177650051,
-        27.99386213,
-        40.3362223,
-        0.812181278,
-        9.156153933,
-        10.98302044
+    hover_text = [
+        (
+            f"<b>{loc}</b><br>"
+            f"{labels[0]}: {a:.0f}%<br>"
+            f"{labels[1]}: {b:.0f}%<br>"
+            f"{labels[2]}: {c:.0f}%<br>"
+            f"{labels[3]}: {d:.0f}%<br>"
+            f"Nearest subgroup: {sg}<br>"
+            f"Mahalanobis distance: {dist:.3f}<br>"
+            f"Inside defined range field: {inside}"
+        )
+        for loc, a, b, c, d, sg, dist, inside in zip(
+            df["Locality"],
+            df["A"], df["B"], df["C"], df["D"],
+            df["Subgroup"],
+            df["Mahalanobis_Distance"],
+            df["Inside_Range_Field"]
+        )
     ]
 
-}, index=[
-    "Amphibolites",
-    "Granulites",
-    "Eclogites",
-    "Greenschists",
-    "Granites & Pegmatites",
-    "Ultramafic rocks",
-    "Blueschists",
-    "Calc-silicate rocks"
-])
+    # Outer black ring
+    fig.add_trace(
+        go.Scatter(
+            x=df["x"], y=df["y"],
+            mode="markers",
+            marker=dict(
+                size=point_size + 3,
+                color="rgba(0,0,0,0)",
+                line=dict(color="black", width=2.5)
+            ),
+            text=hover_text,
+            hovertemplate="%{text}<extra></extra>",
+            showlegend=False
+        )
+    )
 
+    # Colored sample marker
+    fig.add_trace(
+        go.Scatter(
+            x=df["x"], y=df["y"],
+            mode="markers",
+            marker=dict(
+                size=point_size,
+                color=ratio,
+                colorscale=colorscale,
+                cmin=0,
+                cmax=1,
+                opacity=0.95,
+                colorbar=dict(
+                    title=f"{labels[0]} / ({labels[0]} + {labels[1]})",
+                    thickness=20
+                )
+            ),
+            text=hover_text,
+            hovertemplate="%{text}<extra></extra>",
+            name="Uploaded samples"
+        )
+    )
 
-# SUBFIELD STANDARD DEVIATIONS
+    # Small black centre point, as in the garnet application
+    fig.add_trace(
+        go.Scatter(
+            x=df["x"], y=df["y"],
+            mode="markers",
+            marker=dict(
+                size=max(3.0, point_size * 0.22),
+                color="black",
+                line=dict(width=0)
+            ),
+            hoverinfo="skip",
+            showlegend=False
+        )
+    )
 
-
-subfield_sigmas_raw = pd.DataFrame({
-
-    "alm": [
-        10.34841545,
-        12.29476235,
-        12.67775939,
-        17.88439765,
-        14.35396254,
-        8.963328014,
-        11.23642444,
-        21.2594703
-    ],
-
-    "prp": [
-        8.402774083,
-        14.64088125,
-        12.21618211,
-        2.160177633,
-        5.404302193,
-        15.99899131,
-        7.608415516,
-        2.57929375
-    ],
-
-    "grs": [
-        9.198543982,
-        8.220985049,
-        8.401915528,
-        9.018942259,
-        1.638148843,
-        13.22167668,
-        5.837586628,
-        30.103043
-    ],
-
-    "sps": [
-        10.56094471,
-        1.610341276,
-        0.825854952,
-        21.805533,
-        17.31566399,
-        0.575505324,
-        13.55642173,
-        14.93862155
+    tickvals = list(X_LABELS.keys())
+    ticktext = [
+        f"{ab}<br>CD{str(100 - int(ab[2:])).zfill(2)}"
+        for ab in X_LABELS.values()
     ]
 
-}, index=subfield_means_raw.index)
-
-
-
-means = (
-    subfield_means_raw
-    .rename(columns={
-        "alm": "Alm",
-        "prp": "Prp",
-        "grs": "Grs",
-        "sps":  "Sps"
-    })
-    [["Alm", "Sps", "Prp", "Grs"]]
-)
-
-sigmas = (
-    subfield_sigmas_raw
-    .rename(columns={
-        "alm": "Alm",
-        "prp": "Prp",
-        "grs": "Grs",
-        "sps":  "Sps"
-    })
-    [["Alm", "Sps", "Prp", "Grs"]]
-)
-
-
-# DIAGNOSTIC CHECK
-
-
-print("\nCheck Spalten-Reihenfolge:")
-print("Means cols:", list(means.columns))
-print("Sigmas cols:", list(sigmas.columns))
-print("Points cols: ['Alm','Pyr','Gro','Spe']")
-# 
-
-
-
-df_maha = df_parameters[["Alm", "Prp", "Grs", "Sps"]].copy()
-
-
-if distance_method == "Mahalanobis":
-
-    df_maha = classify_dataset(df_maha, means, sigmas)
-
-    df_parameters["Nearest_Subfield"] = \
-        df_maha["Nearest_Subfield"]
-
-    df_parameters["Distance"] = \
-        df_maha["Mahalanobis_Distance"]
-
-
-elif distance_method == "Log-Euclidean":
-
-    df_maha = classify_dataset_logeuclidean(
-        df_maha,
-        means
-    )
-
-    df_parameters["Nearest_Subfield"] = \
-        df_maha["Nearest_Subfield_LogEuclidean"]
-
-    df_parameters["Distance"] = \
-        df_maha["LogEuclidean_Distance"]
-
-
-elif distance_method == "Aitchison":
-
-    df_maha = classify_dataset_aitchison(
-        df_maha,
-        means
-    )
-
-    df_parameters["Nearest_Subfield"] = \
-        df_maha["Nearest_Subfield_Aitchison"]
-
-    df_parameters["Distance"] = \
-        df_maha["Aitchison_Distance"]
-    
-
-# Summary
-summary_pf = df_parameters["Nearest_Subfield"].value_counts()
-if not df_linz_params.empty:
-    summary_lmf = df_linz_params["Nearest_Subfield"].value_counts()
-    summary_lmf_pct = (summary_lmf / len(df_linz_params) * 100).round(1)
-else:
-    summary_lmf = pd.Series(dtype=float)
-    summary_lmf_pct = pd.Series(dtype=float)
-
-summary_pf_pct = (summary_pf / len(df_parameters) * 100).round(1)
-summary_lmf_pct = (summary_lmf / len(df_linz_params) * 100).round(1)
-print("\n=== Zusammenfassung (Mahalanobis, korrekt gemappt) ===")
-print(pd.DataFrame({
-    "PF Anzahl": summary_pf,
-    "PF %": summary_pf_pct
-}))
-
-print(pd.DataFrame({
-    "LMF Anzahl": summary_lmf,
-    "LMF %": summary_lmf_pct
-}))
-
-#  small diagnostic output
-print("\nCheck Spalten-Reihenfolge:")
-print("Means cols:", list(means.columns))
-print("Sigmas cols:", list(sigmas.columns))
-print("Points cols: ['Alm','Sps','Prp','Grs']")
-
-legend_text = (
-    "<span style='font-size:40px; font-weight:bold;'>Garnet Provenance Groups</span><br>"
-    "<span style='font-size:23px; font-style:italic;'>Classification based on standardized Mahalanobis distance</span><br>"
-    "<span style='font-size:23px; font-style:italic;'>using a diagonal covariance matrix</span><br><br>"
-    f"<span style='font-size:30px;'>Locality: {df_parameters['Locality'].iloc[0] if 'Locality' in df_parameters.columns else 'not specified'}</span><br><br>"
-)
-
-for file_path in ordered_hulls:
-    color = color_mapping_files[file_path]
-    hull_name = legend_mapping[file_path]
-
-    count_pf = summary_pf.get(hull_name, 0)
-    pct_pf = summary_pf_pct.get(hull_name, 0)
-
-    legend_text += (
-        f'<span style="color:{color}; font-size:42px; vertical-align:middle;">■</span> '
-        f'<span style="font-size:31px; font-weight:bold; vertical-align:middle;">{hull_name}</span> '
-        f'<span style="font-size:26px; vertical-align:middle;">'
-        f'{int(count_pf)} points ({pct_pf:.1f}%)'
-        f'</span><br>'
-    )
-
-print("\nLegend content with counts and percentages:")
-print(legend_text)
-
-#Add both the colorbar title and the legend block 
-fig.add_annotation(
-    text="Almandine / (Almandine + Spessartine)",
-    x=1.02,
-    y=0.5,
-    textangle=-90,
-    showarrow=False,
-    xref="paper",
-    yref="paper",
-    font=dict(size=30, color="black")
-)
-
-fig.add_shape(
-    type="rect",
-    xref="paper",
-    yref="paper",
-    x0=0.015,
-    x1=0.37,
-    y0=0.48,
-    y1=0.98,
-    fillcolor="white",
-    line=dict(color="black", width=3),
-    layer="above"
-)
-
-
-fig.update_layout(
-    annotations=[
-        dict(
-            x=0.015,
+    fig.update_layout(
+        plot_bgcolor="white",
+        paper_bgcolor="white",
+        height=950,
+        xaxis=dict(
+            title=f"Sum of {labels[0]} (%) + {labels[1]} (%)",
+            range=[-30, RECTANGLES[-1][0] + RECTANGLES[-1][1] + 20],
+            tickvals=tickvals,
+            ticktext=ticktext,
+            tickangle=0,
+            tickfont=dict(size=12, color="black"),
+            title_font=dict(size=22, color="black"),
+            showgrid=False,
+            zeroline=False,
+            linecolor="black",
+            linewidth=2
+        ),
+        yaxis=dict(
+            title=f"{labels[2]} (%) /// {labels[3]} (%) = grid height − {labels[2]} (%)",
+            range=[0, 100],
+            dtick=10,
+            tickfont=dict(size=12, color="black"),
+            title_font=dict(size=20, color="black"),
+            showgrid=False,
+            zeroline=False,
+            linecolor="black",
+            linewidth=2
+        ),
+        legend=dict(
+            title="<b>Subgroups</b><br><i>Diagonal Mahalanobis classification</i>",
+            x=0.02,
             y=0.98,
-            xref="paper",
-            yref="paper",
-            text=legend_text,
-            showarrow=False,
-            font=dict(size=28, color="black"),
-            bgcolor="rgba(0,0,0,0)",
-            borderwidth=0,
-            xanchor="left",
-            yanchor="top",
-            align="left",
-            textangle=0
-        )
-    ]
-)
-
-x_min = -30
-x_max = rechtecke[-1][0] + rechtecke[-1][1]
-
-fig.add_shape(
-    type="line",
-    x0=x_min,
-    x1=x_max,
-    y0=100,
-    y1=100,
-    line=dict(
-        color="black",
-        width=2
-    )
-)
-
-fig.update_layout(
-    hoverlabel=dict(
-        font_size=24
-    )
-)
-
-st.plotly_chart(fig, use_container_width=True)
-
-
-
-fig.update_layout(
-    margin=dict(
-        l=140,   
-        r=80,    
-        t=20,    
-        b=120    
-    )
-)
-
-
-# IMAGE EXPORT: PNG or SVG
-
-
-export_format = st.selectbox(
-    "Select Export Format",
-    ["PNG", "SVG"],
-    key="export_format_selector"
-)
-
-st.write("Current export format:", export_format)
-
-try:
-    img_bytes = fig.to_image(
-        format=export_format.lower(),
-        width=2260,
-        height=1210,
-        scale=2
+            bgcolor="rgba(255,255,255,0.88)",
+            bordercolor="black",
+            borderwidth=1
+        ),
+        margin=dict(l=90, r=120, t=40, b=100),
+        hoverlabel=dict(font_size=16)
     )
 
-    if export_format == "PNG":
-        file_extension = "png"
-        mime_type = "image/png"
-    else:
-        file_extension = "svg"
-        mime_type = "image/svg+xml"
+    st.plotly_chart(fig, use_container_width=True)
 
-    st.download_button(
-        label=f"Download {export_format}",
-        data=img_bytes,
-        file_name=f"cantor_diagram.{file_extension}",
-        mime=mime_type,
-        key=f"download_button_{file_extension}"
+    # ========================================================
+    # Statistical classification output
+    # ========================================================
+    st.subheader("Distance-based subgroup classification")
+
+    st.caption(
+        "Classification is based on Mahalanobis distance using a diagonal "
+        "covariance approximation. Subgroup means and standard deviations "
+        "are calculated from the valid integer compositions generated from "
+        "the specified subgroup ranges."
     )
 
-except Exception as e:
-    st.warning(
-        f"{export_format} export not available on Streamlit Cloud "
-        "(missing Chrome/Kaleido dependency)."
+    if not summary_df.empty:
+        st.dataframe(summary_df, use_container_width=True)
+
+    if subgroup_means:
+        stats_rows = []
+        for sg_name in subgroup_means:
+            mu = subgroup_means[sg_name]
+            sigma = subgroup_sigmas[sg_name]
+
+            stats_rows.append({
+                "Subgroup": sg_name,
+                f"{labels[0]} mean": round(float(mu[0]), 2),
+                f"{labels[0]} SD": round(float(sigma[0]), 2),
+                f"{labels[1]} mean": round(float(mu[1]), 2),
+                f"{labels[1]} SD": round(float(sigma[1]), 2),
+                f"{labels[2]} mean": round(float(mu[2]), 2),
+                f"{labels[2]} SD": round(float(sigma[2]), 2),
+                f"{labels[3]} mean": round(float(mu[3]), 2),
+                f"{labels[3]} SD": round(float(sigma[3]), 2),
+            })
+
+        with st.expander("Show subgroup means and standard deviations"):
+            st.dataframe(pd.DataFrame(stats_rows), use_container_width=True)
+
+    st.subheader("Normalized uploaded data")
+    display_df = df[
+        [
+            "Locality", "A", "B", "C", "D",
+            "Subgroup", "Mahalanobis_Distance", "Inside_Range_Field"
+        ]
+    ].rename(
+        columns={
+            "A": labels[0],
+            "B": labels[1],
+            "C": labels[2],
+            "D": labels[3]
+        }
     )
+    st.dataframe(display_df, use_container_width=True)
+
+else:
+    st.info("Upload an Excel file to display samples. The subgroup fields can be generated beforehand.")
