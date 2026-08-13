@@ -7,7 +7,7 @@ import streamlit as st
 st.set_page_config(layout="wide", page_title="Cantor Grids")
 
 st.title("Cantor Grids – Four-Parameter Compositional Visualization")
-st.caption("Build: v12 — neutral A/B/C/D defaults")
+st.caption("Build: v13 — garnet-style plot spacing and frame")
 st.caption(
     "Define four compositional parameters, create subgroup fields from parameter ranges, "
     "and upload your own four-parameter dataset."
@@ -983,37 +983,71 @@ if uploaded_file is not None:
         for ab in X_LABELS.values()
     ]
 
+    # Layout aligned more closely with the original garnet application.
+    # In particular, do not draw a heavy bottom x-axis line; instead use
+    # explicit top and left frame lines, as in the garnet plot.
     fig.update_layout(
         plot_bgcolor="white",
         paper_bgcolor="white",
-        height=950,
+        autosize=False,
+        width=2260,
+        height=1210,
         xaxis=dict(
-            title=f"Sum of {labels[0]} (%) + {labels[1]} (%)",
+            title=dict(
+                text=f"Sum of {labels[0]} (%) + {labels[1]} (%)",
+                font=dict(size=35, color="black", family="Arial Black")
+            ),
             range=[-30, RECTANGLES[-1][0] + RECTANGLES[-1][1] + 20],
             tickvals=tickvals,
             ticktext=ticktext,
             tickangle=0,
-            tickfont=dict(size=12, color="black"),
-            title_font=dict(size=22, color="black"),
+            tickfont=dict(size=24, color="black"),
             showgrid=False,
             zeroline=False,
-            linecolor="black",
-            linewidth=2
+            showline=False,
+            ticks=""
         ),
         yaxis=dict(
-            title=f"{labels[2]} (%) /// {labels[3]} (%) = grid height − {labels[2]} (%)",
+            title=dict(
+                text=f"{labels[2]} (%) /// {labels[3]} (%) = grid height − {labels[2]} (%)",
+                font=dict(size=28, color="black", family="Arial Black")
+            ),
             range=[0, 100],
+            constrain="domain",
             dtick=10,
-            tickfont=dict(size=12, color="black"),
-            title_font=dict(size=20, color="black"),
+            tickfont=dict(size=24, color="black"),
             showgrid=False,
             zeroline=False,
-            linecolor="black",
-            linewidth=2
+            showline=False,
+            ticks=""
         ),
         showlegend=False,
-        margin=dict(l=90, r=120, t=40, b=100),
-        hoverlabel=dict(font_size=16)
+        margin=dict(l=0, r=5, t=20, b=5),
+        hoverlabel=dict(font_size=24)
+    )
+
+    # Garnet-style plot frame: left vertical border and thin top border.
+    x_min_frame = -30
+    x_max_frame = RECTANGLES[-1][0] + RECTANGLES[-1][1]
+
+    fig.add_shape(
+        type="line",
+        x0=x_min_frame,
+        x1=x_min_frame,
+        y0=0,
+        y1=100,
+        line=dict(color="black", width=3),
+        layer="above"
+    )
+
+    fig.add_shape(
+        type="line",
+        x0=x_min_frame,
+        x1=x_max_frame,
+        y0=100,
+        y1=100,
+        line=dict(color="black", width=2),
+        layer="above"
     )
 
     # ========================================================
