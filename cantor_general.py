@@ -7,7 +7,7 @@ import streamlit as st
 st.set_page_config(layout="wide", page_title="Cantor Grids")
 
 st.title("Cantor Grids – Four-Parameter Compositional Visualization")
-st.caption("Build: v11 — statistics box auto-fits all entries")
+st.caption("Build: v12 — neutral A/B/C/D defaults")
 st.caption(
     "Define four compositional parameters, create subgroup fields from parameter ranges, "
     "and upload your own four-parameter dataset."
@@ -420,13 +420,13 @@ st.header("1. Define parameter names")
 
 c1, c2, c3, c4 = st.columns(4)
 with c1:
-    label_a = st.text_input("Parameter A", "Sand")
+    label_a = st.text_input("Parameter A", "A")
 with c2:
-    label_b = st.text_input("Parameter B", "Silt")
+    label_b = st.text_input("Parameter B", "B")
 with c3:
-    label_c = st.text_input("Parameter C", "Clay")
+    label_c = st.text_input("Parameter C", "C")
 with c4:
-    label_d = st.text_input("Parameter D", "Organic matter")
+    label_d = st.text_input("Parameter D", "D")
 
 labels = [
     label_a.strip() or "A",
@@ -532,9 +532,9 @@ Example:
 
 | Subgroup | A_min | A_max | B_min | B_max | C_min | C_max | D_min | D_max |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
-| Sandy | 55 | 75 | 10 | 30 | 5 | 20 | 2 | 10 |
-| Loamy | 30 | 50 | 25 | 45 | 15 | 30 | 3 | 10 |
-| Clayey | 15 | 35 | 20 | 40 | 35 | 55 | 3 | 10 |
+| Subgroup 1 | 55 | 75 | 10 | 30 | 5 | 20 | 2 | 10 |
+| Subgroup 2 | 30 | 50 | 25 | 45 | 15 | 30 | 3 | 10 |
+| Subgroup 3 | 15 | 35 | 20 | 40 | 35 | 55 | 3 | 10 |
 
 The letters A–D refer to the parameter names defined above.
 """)
