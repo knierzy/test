@@ -7,7 +7,7 @@ import streamlit as st
 st.set_page_config(layout="wide", page_title="Cantor Grids")
 
 st.title("Cantor Grids – Four-Parameter Compositional Visualization")
-st.caption("Build: v14 — compact auto-fit statistics box")
+st.caption("Build: v15 — filled subgroup fields")
 st.caption(
     "Define four compositional parameters, create subgroup fields from parameter ranges, "
     "and upload your own four-parameter dataset."
@@ -230,7 +230,7 @@ def add_subgroup_fields(fig, subgroup_results):
             continue
 
         color = SUBGROUP_COLORS[idx % len(SUBGROUP_COLORS)]
-        fill = rgba_with_alpha(color, 0.015)
+        fill = rgba_with_alpha(color, 0.40)
         first_trace = True
 
         for ab, group in pts.groupby("AB"):
@@ -245,7 +245,7 @@ def add_subgroup_fields(fig, subgroup_results):
                     x=[x_min, x_min, x_max, x_max, x_min],
                     y=[y_min, y_max, y_max, y_min, y_min],
                     mode="lines",
-                    line=dict(color=color, width=2.4),
+                    line=dict(color=color, width=1.5),
                     fill="toself",
                     fillcolor=fill,
                     name=sg["name"],
