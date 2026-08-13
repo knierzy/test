@@ -1,3 +1,4 @@
+
 import itertools
 import numpy as np
 import pandas as pd
@@ -7,6 +8,7 @@ import streamlit as st
 st.set_page_config(layout="wide", page_title="Cantor Grids")
 
 st.title("Cantor Grids – Four-Parameter Compositional Visualization")
+st.caption("Build: v9 — in-plot Mahalanobis statistics box")
 st.caption(
     "Define four compositional parameters, create subgroup fields from parameter ranges, "
     "and upload your own four-parameter dataset."
@@ -250,7 +252,7 @@ def add_subgroup_fields(fig, subgroup_results):
                     fillcolor=fill,
                     name=sg["name"],
                     legendgroup=sg["name"],
-                    showlegend=first_trace,
+                    showlegend=False,
                     hovertemplate=(
                         f"<b>{sg['name']}</b><br>"
                         f"AB = {int(ab)}<br>"
@@ -263,6 +265,110 @@ def add_subgroup_fields(fig, subgroup_results):
                 )
             )
             first_trace = False
+
+
+
+def subgroup_statistics_from_generated(subgroup_results):
+    """
+    Calculate mean compositions and standard deviations for each subgroup
+    from all valid integer compositions generated from its parameter ranges.
+
+    These statistics define the diagonal-covariance Mahalanobis approximation.
+    """
+    means = {}
+    sigmas = {}
+
+    for sg in subgroup_results:
+        pts = sg["points"]
+
+        if pts.empty:
+            continue
+
+        comp = pts[["A", "B", "C", "D"]].astype(float)
+
+        means[sg["name"]] = comp.mean(axis=0).to_numpy()
+
+        # ddof=1 when possible; replace undefined/zero values below.
+        if len(comp) > 1:
+            sigma = comp.std(axis=0, ddof=1).to_numpy()
+        else:
+            sigma = np.zeros(4, dtype=float)
+
+        # Same practical safeguard as in the garnet application:
+        # avoid singular/infinite weighting for extremely narrow ranges.
+        sigma = np.where(np.isfinite(sigma), sigma, 0.0)
+        sigma = np.clip(sigma, 0.5, None)
+
+        sigmas[sg["name"]] = sigma
+
+    return means, sigmas
+
+
+def classify_diagonal_mahalanobis(df_input, subgroup_results):
+    """
+    Assign every uploaded composition to the closest subgroup using
+    Mahalanobis distance with a diagonal covariance approximation:
+
+        d = sqrt(sum(((x_i - mu_i) / sigma_i)^2))
+
+    Means and sigmas are calculated from each subgroup's constrained
+    Cartesian product (A+B+C+D=100).
+    """
+    means, sigmas = subgroup_statistics_from_generated(subgroup_results)
+
+    labels_out = []
+    distances_out = []
+
+    if not means:
+        df_input["Nearest_Subfield"] = "Unclassified"
+        df_input["Mahalanobis_Distance"] = np.nan
+        return df_input, means, sigmas
+
+    X = df_input[["A", "B", "C", "D"]].astype(float).to_numpy()
+
+    for x in X:
+        best_label = None
+        best_distance = np.inf
+
+        for name, mu in means.items():
+            sigma = sigmas[name]
+            d = float(np.sqrt(np.sum(((x - mu) / sigma) ** 2)))
+
+            if d < best_distance:
+                best_distance = d
+                best_label = name
+
+        labels_out.append(best_label)
+        distances_out.append(best_distance)
+
+    df_input["Nearest_Subfield"] = labels_out
+    df_input["Mahalanobis_Distance"] = distances_out
+
+    return df_input, means, sigmas
+
+
+def classification_summary(df_input, subgroup_results):
+    """
+    Return count and percentage for every defined subgroup.
+    """
+    subgroup_names = [
+        sg["name"] for sg in subgroup_results if not sg["points"].empty
+    ]
+
+    counts = df_input["Nearest_Subfield"].value_counts()
+    n = len(df_input)
+
+    rows = []
+    for name in subgroup_names:
+        count = int(counts.get(name, 0))
+        pct = (count / n * 100.0) if n else 0.0
+        rows.append({
+            "Subgroup": name,
+            "Points": count,
+            "Percent": round(pct, 1)
+        })
+
+    return pd.DataFrame(rows)
 
 
 def read_uploaded_dataset(uploaded_file, labels):
@@ -611,7 +717,7 @@ st.header("5. Plot settings")
 
 pc1, pc2 = st.columns(2)
 with pc1:
-    point_size = st.slider("Sample point size", 5, 40, 18, 1)
+    point_size = st.slider("Sample point size", 3, 40, 7, 1)
 with pc2:
     colorscale = st.selectbox(
         "Sample color scale",
@@ -633,7 +739,50 @@ if uploaded_file is not None:
         st.error(str(exc))
         st.stop()
 
-    df["Subgroup"] = df.apply(lambda r: classify_by_ranges(r, subgroup_defs), axis=1)
+    # Distance-based classification, analogous to the garnet application
+    df, subgroup_means, subgroup_sigmas = classify_diagonal_mahalanobis(
+        df,
+        generated_subgroups
+    )
+
+    # Keep direct range-membership information as an additional diagnostic.
+    df["Inside_Range_Field"] = df.apply(
+        lambda r: classify_by_ranges(r, subgroup_defs),
+        axis=1
+    )
+
+    # User-facing classification label
+    df["Subgroup"] = df["Nearest_Subfield"]
+
+    summary_df = classification_summary(df, generated_subgroups)
+
+    # First locality from the uploaded Excel file (as requested)
+    if "Locality" in df.columns and len(df) > 0:
+        first_locality = str(df["Locality"].iloc[0])
+    else:
+        first_locality = "not specified"
+
+    # Build in-plot statistical summary text exactly in the style of the garnet application
+    stats_legend_text = (
+        "<span style='font-size:40px; font-weight:bold;'>Subgroup Classification</span><br>"
+        "<span style='font-size:23px; font-style:italic;'>Classification based on Mahalanobis distance</span><br>"
+        "<span style='font-size:23px; font-style:italic;'>using a diagonal covariance approximation</span><br><br>"
+        f"<span style='font-size:30px;'>Locality: {first_locality}</span><br><br>"
+    )
+
+    for idx, row in summary_df.iterrows():
+        subgroup_name = row["Subgroup"]
+        count = int(row["Points"])
+        pct = float(row["Percent"])
+        color = SUBGROUP_COLORS[idx % len(SUBGROUP_COLORS)]
+
+        stats_legend_text += (
+            f'<span style="color:{color}; font-size:42px; vertical-align:middle;">■</span> '
+            f'<span style="font-size:31px; font-weight:bold; vertical-align:middle;">{subgroup_name}</span> '
+            f'<span style="font-size:26px; vertical-align:middle;">'
+            f'{count} points ({pct:.1f}%)'
+            f'</span><br>'
+        )
 
     fig = go.Figure()
 
@@ -686,10 +835,16 @@ if uploaded_file is not None:
             f"{labels[1]}: {b:.0f}%<br>"
             f"{labels[2]}: {c:.0f}%<br>"
             f"{labels[3]}: {d:.0f}%<br>"
-            f"Subgroup: {sg}"
+            f"Nearest subgroup: {sg}<br>"
+            f"Mahalanobis distance: {dist:.3f}<br>"
+            f"Inside defined range field: {inside}"
         )
-        for loc, a, b, c, d, sg in zip(
-            df["Locality"], df["A"], df["B"], df["C"], df["D"], df["Subgroup"]
+        for loc, a, b, c, d, sg, dist, inside in zip(
+            df["Locality"],
+            df["A"], df["B"], df["C"], df["D"],
+            df["Subgroup"],
+            df["Mahalanobis_Distance"],
+            df["Inside_Range_Field"]
         )
     ]
 
@@ -728,7 +883,8 @@ if uploaded_file is not None:
             ),
             text=hover_text,
             hovertemplate="%{text}<extra></extra>",
-            name="Uploaded samples"
+            name="Uploaded samples",
+            showlegend=False
         )
     )
 
@@ -781,22 +937,96 @@ if uploaded_file is not None:
             linecolor="black",
             linewidth=2
         ),
-        legend=dict(
-            title="<b>Subgroups</b>",
-            x=0.02,
-            y=0.98,
-            bgcolor="rgba(255,255,255,0.88)",
-            bordercolor="black",
-            borderwidth=1
-        ),
+        showlegend=False,
         margin=dict(l=90, r=120, t=40, b=100),
         hoverlabel=dict(font_size=16)
     )
 
+    # ========================================================
+    # IN-PLOT STATISTICS BOX — same construction as garnet app
+    # ========================================================
+
+    # White rectangle behind the statistics text
+    fig.add_shape(
+        type="rect",
+        xref="paper",
+        yref="paper",
+        x0=0.015,
+        x1=0.55,
+        y0=0.60,
+        y1=0.98,
+        fillcolor="white",
+        line=dict(color="black", width=3),
+        layer="above"
+    )
+
+    # IMPORTANT: use update_layout(annotations=[...]) exactly as in the garnet script
+    fig.update_layout(
+        annotations=[
+            dict(
+                x=0.015,
+                y=0.98,
+                xref="paper",
+                yref="paper",
+                text=stats_legend_text,
+                showarrow=False,
+                font=dict(size=28, color="black"),
+                bgcolor="rgba(0,0,0,0)",
+                borderwidth=0,
+                xanchor="left",
+                yanchor="top",
+                align="left",
+                textangle=0
+            )
+        ],
+        showlegend=False
+    )
+
     st.plotly_chart(fig, use_container_width=True)
 
+    # ========================================================
+    # Statistical classification output
+    # ========================================================
+    st.subheader("Distance-based subgroup classification")
+
+    st.caption(
+        "Classification is based on Mahalanobis distance using a diagonal "
+        "covariance approximation. Subgroup means and standard deviations "
+        "are calculated from the valid integer compositions generated from "
+        "the specified subgroup ranges."
+    )
+
+    if not summary_df.empty:
+        st.dataframe(summary_df, use_container_width=True)
+
+    if subgroup_means:
+        stats_rows = []
+        for sg_name in subgroup_means:
+            mu = subgroup_means[sg_name]
+            sigma = subgroup_sigmas[sg_name]
+
+            stats_rows.append({
+                "Subgroup": sg_name,
+                f"{labels[0]} mean": round(float(mu[0]), 2),
+                f"{labels[0]} SD": round(float(sigma[0]), 2),
+                f"{labels[1]} mean": round(float(mu[1]), 2),
+                f"{labels[1]} SD": round(float(sigma[1]), 2),
+                f"{labels[2]} mean": round(float(mu[2]), 2),
+                f"{labels[2]} SD": round(float(sigma[2]), 2),
+                f"{labels[3]} mean": round(float(mu[3]), 2),
+                f"{labels[3]} SD": round(float(sigma[3]), 2),
+            })
+
+        with st.expander("Show subgroup means and standard deviations"):
+            st.dataframe(pd.DataFrame(stats_rows), use_container_width=True)
+
     st.subheader("Normalized uploaded data")
-    display_df = df[["Locality", "A", "B", "C", "D", "Subgroup"]].rename(
+    display_df = df[
+        [
+            "Locality", "A", "B", "C", "D",
+            "Subgroup", "Mahalanobis_Distance", "Inside_Range_Field"
+        ]
+    ].rename(
         columns={
             "A": labels[0],
             "B": labels[1],
