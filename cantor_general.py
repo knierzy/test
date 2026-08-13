@@ -7,7 +7,7 @@ import streamlit as st
 st.set_page_config(layout="wide", page_title="Cantor Grids")
 
 st.title("Cantor Grids – Four-Parameter Compositional Visualization")
-st.caption("Build: v10 — dynamic statistics box and garnet-style x-axis labels")
+st.caption("Build: v11 — statistics box auto-fits all entries")
 st.caption(
     "Define four compositional parameters, create subgroup fields from parameter ranges, "
     "and upload your own four-parameter dataset."
@@ -779,25 +779,60 @@ if uploaded_file is not None:
     group_fs = int(31 * legend_scale)
     count_fs = int(26 * legend_scale)
 
-    # Approximate vertical box height in paper coordinates.
-    # Tuned to the visual proportions of the garnet application.
-    base_height = 0.19
-    per_group_height = 0.050
-    legend_height = min(0.88, (base_height + per_group_height * n_subgroups) * legend_scale)
+    # Dynamic vertical statistics-box size.
+    # Count the visible text lines instead of estimating only from subgroup count.
+    # Visible structure:
+    #   title
+    #   method line 1
+    #   method line 2
+    #   blank line
+    #   locality
+    #   blank line
+    #   one line per subgroup
+    #
+    # Extra padding is intentionally included so the lower border can never
+    # cut through the final subgroup entries.
+    fixed_visible_lines = 6
+    total_visible_lines = fixed_visible_lines + n_subgroups
+
+    # Convert the scaled text layout to Plotly paper coordinates.
+    # A minimum is kept for small boxes, while larger subgroup lists expand
+    # automatically downward.
+    line_height_paper = 0.046 * legend_scale
+    vertical_padding = 0.055 * legend_scale
+    legend_height = min(
+        0.93,
+        max(
+            0.40 * legend_scale,
+            total_visible_lines * line_height_paper + vertical_padding
+        )
+    )
+
     legend_y1 = 0.98
-    legend_y0 = max(0.05, legend_y1 - legend_height)
+    legend_y0 = max(0.025, legend_y1 - legend_height)
 
     # Approximate width from longest rendered legend entry.
-    longest_name = max(
-        [len(str(x)) for x in summary_df["Subgroup"].tolist()] + [len("Subgroup Classification")]
-    )
-    longest_count = 0
+    # Width follows the longest complete visible entry, not separate name/count maxima.
+    complete_entries = []
     for _, _row in summary_df.iterrows():
-        txt = f"{int(_row['Points'])} points ({float(_row['Percent']):.1f}%)"
-        longest_count = max(longest_count, len(txt))
+        complete_entries.append(
+            f"{_row['Subgroup']} {int(_row['Points'])} points ({float(_row['Percent']):.1f}%)"
+        )
 
-    approx_chars = longest_name + longest_count + 6
-    legend_width = min(0.72, max(0.33, (0.20 + approx_chars * 0.0065) * legend_scale))
+    longest_entry_chars = max(
+        [len("Subgroup Classification"),
+         len("Classification based on Mahalanobis distance"),
+         len("using a diagonal covariance approximation"),
+         len(f"Locality: {first_locality}")]
+        + [len(x) for x in complete_entries]
+    )
+
+    # Character-based width estimate with padding. Cap prevents the box from
+    # swallowing the whole plot for unusually long labels.
+    legend_width = min(
+        0.82,
+        max(0.36, (0.10 + longest_entry_chars * 0.0080) * legend_scale)
+    )
     legend_x0 = 0.015
     legend_x1 = min(0.92, legend_x0 + legend_width)
 
