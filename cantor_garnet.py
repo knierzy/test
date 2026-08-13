@@ -1,4 +1,3 @@
-
 import itertools
 import numpy as np
 import pandas as pd
@@ -755,6 +754,32 @@ if uploaded_file is not None:
 
     summary_df = classification_summary(df, generated_subgroups)
 
+    # First locality from the uploaded Excel file (as requested)
+    if "Locality" in df.columns and len(df) > 0:
+        first_locality = str(df["Locality"].iloc[0])
+    else:
+        first_locality = "not specified"
+
+    # Build in-plot statistical summary text, analogous to the garnet application
+    stats_legend_text = (
+        "<span style='font-size:30px; font-weight:bold;'>Subgroup Classification</span><br>"
+        "<span style='font-size:20px; font-style:italic;'>Classification based on Mahalanobis distance</span><br>"
+        "<span style='font-size:20px; font-style:italic;'>using a diagonal covariance approximation</span><br><br>"
+        f"<span style='font-size:23px;'><b>Locality:</b> {first_locality}</span><br><br>"
+    )
+
+    for idx, row in summary_df.iterrows():
+        subgroup_name = row["Subgroup"]
+        count = int(row["Points"])
+        pct = float(row["Percent"])
+        color = SUBGROUP_COLORS[idx % len(SUBGROUP_COLORS)]
+
+        stats_legend_text += (
+            f'<span style="color:{color}; font-size:30px;">■</span> '
+            f'<span style="font-size:23px; font-weight:bold;">{subgroup_name}</span> '
+            f'<span style="font-size:21px;">{count} points ({pct:.1f}%)</span><br>'
+        )
+
     fig = go.Figure()
 
     # Background first
@@ -917,6 +942,35 @@ if uploaded_file is not None:
         ),
         margin=dict(l=90, r=120, t=40, b=100),
         hoverlabel=dict(font_size=16)
+    )
+
+    # White statistics box inside the plot, analogous to the garnet application
+    fig.add_shape(
+        type="rect",
+        xref="paper",
+        yref="paper",
+        x0=0.015,
+        x1=0.47,
+        y0=0.68,
+        y1=0.98,
+        fillcolor="rgba(255,255,255,0.94)",
+        line=dict(color="black", width=2),
+        layer="above"
+    )
+
+    fig.add_annotation(
+        x=0.025,
+        y=0.965,
+        xref="paper",
+        yref="paper",
+        text=stats_legend_text,
+        showarrow=False,
+        xanchor="left",
+        yanchor="top",
+        align="left",
+        font=dict(size=20, color="black"),
+        bgcolor="rgba(0,0,0,0)",
+        borderwidth=0
     )
 
     st.plotly_chart(fig, use_container_width=True)
