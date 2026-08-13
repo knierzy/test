@@ -230,7 +230,7 @@ def add_subgroup_fields(fig, subgroup_results):
             continue
 
         color = SUBGROUP_COLORS[idx % len(SUBGROUP_COLORS)]
-        fill = rgba_with_alpha(color, 0.035)
+        fill = rgba_with_alpha(color, 0.015)
         first_trace = True
 
         for ab, group in pts.groupby("AB"):
@@ -245,7 +245,7 @@ def add_subgroup_fields(fig, subgroup_results):
                     x=[x_min, x_min, x_max, x_max, x_min],
                     y=[y_min, y_max, y_max, y_min, y_min],
                     mode="lines",
-                    line=dict(color=color, width=1.8),
+                    line=dict(color=color, width=2.4),
                     fill="toself",
                     fillcolor=fill,
                     name=sg["name"],
@@ -542,23 +542,23 @@ The letters A–D refer to the parameter names defined above.
             st.error(f"Could not read subgroup definition file: {exc}")
 
 # ============================================================
-# 3. Generate subgroup fields
+# 3. Generate subgroup fields automatically
 # ============================================================
 
 st.header("3. Generate subgroup fields")
 
-if st.button("Generate subgroup fields"):
-    generated = []
-    for sg in subgroup_defs:
-        points = build_subgroup_points(sg["ranges"])
-        generated.append({
-            "name": sg["name"],
-            "ranges": sg["ranges"],
-            "points": points
-        })
-    st.session_state["generated_subgroups_v3"] = generated
+# Always regenerate from the currently visible/manual or uploaded range definitions.
+# This avoids stale Streamlit session-state data after switching input mode or
+# updating the app code.
+generated_subgroups = []
 
-generated_subgroups = st.session_state.get("generated_subgroups_v3", [])
+for sg in subgroup_defs:
+    points = build_subgroup_points(sg["ranges"])
+    generated_subgroups.append({
+        "name": sg["name"],
+        "ranges": sg["ranges"],
+        "points": points
+    })
 
 if generated_subgroups:
     summary = pd.DataFrame([
@@ -569,12 +569,18 @@ if generated_subgroups:
         }
         for sg in generated_subgroups
     ])
+
     st.dataframe(summary, use_container_width=True)
 
     empty = [sg["name"] for sg in generated_subgroups if sg["points"].empty]
-    if empty:
-        st.warning("No valid compositions summing to 100 were generated for: " + ", ".join(empty))
 
+    if empty:
+        st.warning(
+            "No valid compositions summing to 100 were generated for: "
+            + ", ".join(empty)
+        )
+else:
+    st.info("Define at least one valid subgroup field above.")
 
 # ============================================================
 # 4. Upload
@@ -658,7 +664,16 @@ if uploaded_file is not None:
 
     # User-defined subgroup fields over the gray grid
     if show_subgroups and generated_subgroups:
-        add_subgroup_fields(fig, generated_subgroups)
+        nonempty_subgroups = [
+            sg for sg in generated_subgroups if not sg["points"].empty
+        ]
+        add_subgroup_fields(fig, nonempty_subgroups)
+
+        if nonempty_subgroups:
+            st.caption(
+                "Subgroup fields drawn: "
+                + ", ".join(sg["name"] for sg in nonempty_subgroups)
+            )
 
     # Uploaded samples
     ratio = df["A"] / (df["A"] + df["B"]).replace(0, np.nan)
