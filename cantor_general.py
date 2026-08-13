@@ -7,7 +7,7 @@ import streamlit as st
 st.set_page_config(layout="wide", page_title="Cantor Grids")
 
 st.title("Cantor Grids – Four-Parameter Compositional Visualization")
-st.caption("Build: v13 — garnet-style plot spacing and frame")
+st.caption("Build: v14 — compact auto-fit statistics box")
 st.caption(
     "Define four compositional parameters, create subgroup fields from parameter ranges, "
     "and upload your own four-parameter dataset."
@@ -780,33 +780,33 @@ if uploaded_file is not None:
     count_fs = int(26 * legend_scale)
 
     # Dynamic vertical statistics-box size.
-    # Count the visible text lines instead of estimating only from subgroup count.
-    # Visible structure:
-    #   title
-    #   method line 1
-    #   method line 2
-    #   blank line
-    #   locality
-    #   blank line
-    #   one line per subgroup
-    #
-    # Extra padding is intentionally included so the lower border can never
-    # cut through the final subgroup entries.
-    fixed_visible_lines = 6
-    total_visible_lines = fixed_visible_lines + n_subgroups
+    # Use tighter line metrics derived from the actual visible structure.
+    # This avoids excessive empty space when many subgroups are present.
 
-    # Convert the scaled text layout to Plotly paper coordinates.
-    # A minimum is kept for small boxes, while larger subgroup lists expand
-    # automatically downward.
-    line_height_paper = 0.046 * legend_scale
-    vertical_padding = 0.055 * legend_scale
-    legend_height = min(
-        0.93,
-        max(
-            0.40 * legend_scale,
-            total_visible_lines * line_height_paper + vertical_padding
-        )
+    # Relative vertical contributions in Plotly paper coordinates.
+    title_h = 0.050 * legend_scale
+    method_h = 0.032 * legend_scale
+    locality_h = 0.040 * legend_scale
+    subgroup_h = 0.033 * legend_scale
+
+    # Small gaps between text blocks, plus compact top/bottom padding.
+    gap_after_methods = 0.018 * legend_scale
+    gap_before_groups = 0.020 * legend_scale
+    box_padding = 0.020 * legend_scale
+
+    legend_height = (
+        box_padding
+        + title_h
+        + 2 * method_h
+        + gap_after_methods
+        + locality_h
+        + gap_before_groups
+        + n_subgroups * subgroup_h
+        + box_padding
     )
+
+    # Keep the box within the plotting area without forcing an oversized minimum.
+    legend_height = min(0.93, max(0.24, legend_height))
 
     legend_y1 = 0.98
     legend_y0 = max(0.025, legend_y1 - legend_height)
