@@ -1,4 +1,3 @@
-
 import itertools
 import numpy as np
 import pandas as pd
@@ -8,7 +7,7 @@ import streamlit as st
 st.set_page_config(layout="wide", page_title="Cantor Grids")
 
 st.title("Cantor Grids – Four-Parameter Compositional Visualization")
-st.caption("Build: v9 — in-plot Mahalanobis statistics box")
+st.caption("Build: v10 — dynamic statistics box and garnet-style x-axis labels")
 st.caption(
     "Define four compositional parameters, create subgroup fields from parameter ranges, "
     "and upload your own four-parameter dataset."
@@ -47,7 +46,6 @@ X_LABELS = {
     2870: "AB65", 3195: "AB60", 3480: "AB55",
     3755: "AB50", 3995: "AB45", 4209: "AB40",
     4405: "AB35", 4570: "AB30", 4830: "AB20",
-    4990: "AB10", 5046: "AB01"
 }
 
 SUBGROUP_COLORS = [
@@ -724,6 +722,15 @@ with pc2:
         ["Plasma", "Viridis", "Turbo", "Inferno", "Cividis", "RdYlBu"]
     )
 
+legend_scale = st.slider(
+    "Statistics box size factor",
+    min_value=0.7,
+    max_value=1.8,
+    value=1.0,
+    step=0.05,
+    help="Scales the in-plot statistics box and text. Useful when many subgroups are defined."
+)
+
 show_subgroups = st.checkbox("Show subgroup fields", value=True)
 show_gray_grid = st.checkbox("Show gray Cantor grid", value=True)
 
@@ -762,12 +769,44 @@ if uploaded_file is not None:
     else:
         first_locality = "not specified"
 
+    # Dynamic statistics-box sizing.
+    # Height grows with subgroup count, while the user can scale the whole box.
+    n_subgroups = max(len(summary_df), 1)
+    title_fs = int(40 * legend_scale)
+    method_fs = int(23 * legend_scale)
+    locality_fs = int(30 * legend_scale)
+    square_fs = int(42 * legend_scale)
+    group_fs = int(31 * legend_scale)
+    count_fs = int(26 * legend_scale)
+
+    # Approximate vertical box height in paper coordinates.
+    # Tuned to the visual proportions of the garnet application.
+    base_height = 0.19
+    per_group_height = 0.050
+    legend_height = min(0.88, (base_height + per_group_height * n_subgroups) * legend_scale)
+    legend_y1 = 0.98
+    legend_y0 = max(0.05, legend_y1 - legend_height)
+
+    # Approximate width from longest rendered legend entry.
+    longest_name = max(
+        [len(str(x)) for x in summary_df["Subgroup"].tolist()] + [len("Subgroup Classification")]
+    )
+    longest_count = 0
+    for _, _row in summary_df.iterrows():
+        txt = f"{int(_row['Points'])} points ({float(_row['Percent']):.1f}%)"
+        longest_count = max(longest_count, len(txt))
+
+    approx_chars = longest_name + longest_count + 6
+    legend_width = min(0.72, max(0.33, (0.20 + approx_chars * 0.0065) * legend_scale))
+    legend_x0 = 0.015
+    legend_x1 = min(0.92, legend_x0 + legend_width)
+
     # Build in-plot statistical summary text exactly in the style of the garnet application
     stats_legend_text = (
-        "<span style='font-size:40px; font-weight:bold;'>Subgroup Classification</span><br>"
-        "<span style='font-size:23px; font-style:italic;'>Classification based on Mahalanobis distance</span><br>"
-        "<span style='font-size:23px; font-style:italic;'>using a diagonal covariance approximation</span><br><br>"
-        f"<span style='font-size:30px;'>Locality: {first_locality}</span><br><br>"
+        f"<span style='font-size:{title_fs}px; font-weight:bold;'>Subgroup Classification</span><br>"
+        f"<span style='font-size:{method_fs}px; font-style:italic;'>Classification based on Mahalanobis distance</span><br>"
+        f"<span style='font-size:{method_fs}px; font-style:italic;'>using a diagonal covariance approximation</span><br><br>"
+        f"<span style='font-size:{locality_fs}px;'>Locality: {first_locality}</span><br><br>"
     )
 
     for idx, row in summary_df.iterrows():
@@ -777,9 +816,9 @@ if uploaded_file is not None:
         color = SUBGROUP_COLORS[idx % len(SUBGROUP_COLORS)]
 
         stats_legend_text += (
-            f'<span style="color:{color}; font-size:42px; vertical-align:middle;">■</span> '
-            f'<span style="font-size:31px; font-weight:bold; vertical-align:middle;">{subgroup_name}</span> '
-            f'<span style="font-size:26px; vertical-align:middle;">'
+            f'<span style="color:{color}; font-size:{square_fs}px; vertical-align:middle;">■</span> '
+            f'<span style="font-size:{group_fs}px; font-weight:bold; vertical-align:middle;">{subgroup_name}</span> '
+            f'<span style="font-size:{count_fs}px; vertical-align:middle;">'
             f'{count} points ({pct:.1f}%)'
             f'</span><br>'
         )
@@ -951,10 +990,10 @@ if uploaded_file is not None:
         type="rect",
         xref="paper",
         yref="paper",
-        x0=0.015,
-        x1=0.55,
-        y0=0.60,
-        y1=0.98,
+        x0=legend_x0,
+        x1=legend_x1,
+        y0=legend_y0,
+        y1=legend_y1,
         fillcolor="white",
         line=dict(color="black", width=3),
         layer="above"
@@ -964,13 +1003,13 @@ if uploaded_file is not None:
     fig.update_layout(
         annotations=[
             dict(
-                x=0.015,
-                y=0.98,
+                x=legend_x0,
+                y=legend_y1,
                 xref="paper",
                 yref="paper",
                 text=stats_legend_text,
                 showarrow=False,
-                font=dict(size=28, color="black"),
+                font=dict(size=max(16, int(28 * legend_scale)), color="black"),
                 bgcolor="rgba(0,0,0,0)",
                 borderwidth=0,
                 xanchor="left",
