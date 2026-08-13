@@ -932,35 +932,17 @@ if uploaded_file is not None:
             linecolor="black",
             linewidth=2
         ),
-        legend=dict(
-            title="<b>Subgroups</b><br><i>Diagonal Mahalanobis classification</i>",
-            x=0.02,
-            y=0.98,
-            bgcolor="rgba(255,255,255,0.88)",
-            bordercolor="black",
-            borderwidth=1
-        ),
+        showlegend=False,
         margin=dict(l=90, r=120, t=40, b=100),
         hoverlabel=dict(font_size=16)
     )
 
-    # White statistics box inside the plot, analogous to the garnet application
-    fig.add_shape(
-        type="rect",
-        xref="paper",
-        yref="paper",
-        x0=0.015,
-        x1=0.47,
-        y0=0.68,
-        y1=0.98,
-        fillcolor="rgba(255,255,255,0.94)",
-        line=dict(color="black", width=2),
-        layer="above"
-    )
-
+    # Statistics text box inside the plot.
+    # Use one Plotly annotation with its own white background and border;
+    # this is more robust in Streamlit than a separate shape + annotation.
     fig.add_annotation(
-        x=0.025,
-        y=0.965,
+        x=0.018,
+        y=0.982,
         xref="paper",
         yref="paper",
         text=stats_legend_text,
@@ -969,8 +951,11 @@ if uploaded_file is not None:
         yanchor="top",
         align="left",
         font=dict(size=20, color="black"),
-        bgcolor="rgba(0,0,0,0)",
-        borderwidth=0
+        bgcolor="rgba(255,255,255,0.97)",
+        bordercolor="black",
+        borderwidth=2,
+        borderpad=8,
+        opacity=1.0
     )
 
     st.plotly_chart(fig, use_container_width=True)
