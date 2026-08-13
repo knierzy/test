@@ -218,8 +218,11 @@ def rgba_with_alpha(rgba, alpha):
 
 def add_subgroup_fields(fig, subgroup_results):
     """
-    Draw subgroup fields slice-by-slice for each AB row.
-    This reproduces the 'scattered subfield' appearance of the original garnet figure.
+    Draw subgroup fields as colored rectangular outlines only.
+
+    For every AB slice, the valid constrained Cartesian-product compositions
+    define a rectangular subfield in the final Cantor-grid coordinates.
+    No colored subgroup points are plotted.
     """
     for idx, sg in enumerate(subgroup_results):
         pts = sg["points"]
@@ -227,66 +230,39 @@ def add_subgroup_fields(fig, subgroup_results):
             continue
 
         color = SUBGROUP_COLORS[idx % len(SUBGROUP_COLORS)]
-        fill = rgba_with_alpha(color, 0.18)
-
+        fill = rgba_with_alpha(color, 0.035)
         first_trace = True
 
         for ab, group in pts.groupby("AB"):
-            xy = group[["x", "y"]].to_numpy()
+            x_min = float(group["x"].min()) - 0.45
+            x_max = float(group["x"].max()) + 0.45
+            y_min = float(group["y"].min()) - 0.45
+            y_max = float(group["y"].max()) + 0.45
 
-            # Scatter the valid integer compositions.
+            # Colored rectangular subfield, matching the garnet-style display.
             fig.add_trace(
-                go.Scattergl(
-                    x=group["x"],
-                    y=group["y"],
-                    mode="markers",
-                    marker=dict(size=4, color=color, opacity=0.70),
-                    name=sg["name"] if first_trace else sg["name"],
+                go.Scatter(
+                    x=[x_min, x_min, x_max, x_max, x_min],
+                    y=[y_min, y_max, y_max, y_min, y_min],
+                    mode="lines",
+                    line=dict(color=color, width=1.8),
+                    fill="toself",
+                    fillcolor=fill,
+                    name=sg["name"],
                     legendgroup=sg["name"],
                     showlegend=first_trace,
-                    customdata=group[["A", "B", "C", "D"]].to_numpy(),
                     hovertemplate=(
                         f"<b>{sg['name']}</b><br>"
-                        "A: %{customdata[0]}%<br>"
-                        "B: %{customdata[1]}%<br>"
-                        "C: %{customdata[2]}%<br>"
-                        "D: %{customdata[3]}%"
+                        f"AB = {int(ab)}<br>"
+                        f"A: {int(group['A'].min())}–{int(group['A'].max())}%<br>"
+                        f"B: {int(group['B'].min())}–{int(group['B'].max())}%<br>"
+                        f"C: {int(group['C'].min())}–{int(group['C'].max())}%<br>"
+                        f"D: {int(group['D'].min())}–{int(group['D'].max())}%"
                         "<extra></extra>"
                     )
                 )
             )
             first_trace = False
-
-            # Add a translucent hull around each AB slice when geometrically possible.
-            hull = convex_hull_2d(xy)
-            if len(hull) >= 3:
-                hx = [p[0] for p in hull] + [hull[0][0]]
-                hy = [p[1] for p in hull] + [hull[0][1]]
-                fig.add_trace(
-                    go.Scatter(
-                        x=hx,
-                        y=hy,
-                        mode="lines",
-                        line=dict(color=color, width=1.4),
-                        fill="toself",
-                        fillcolor=fill,
-                        hoverinfo="skip",
-                        legendgroup=sg["name"],
-                        showlegend=False
-                    )
-                )
-            elif len(hull) == 2:
-                fig.add_trace(
-                    go.Scatter(
-                        x=[hull[0][0], hull[1][0]],
-                        y=[hull[0][1], hull[1][1]],
-                        mode="lines",
-                        line=dict(color=color, width=2),
-                        hoverinfo="skip",
-                        legendgroup=sg["name"],
-                        showlegend=False
-                    )
-                )
 
 
 def read_uploaded_dataset(uploaded_file, labels):
@@ -468,6 +444,21 @@ The letters A–D refer to the parameter names defined above.
     if subgroup_file is not None:
         try:
             sg_df = pd.read_excel(subgroup_file)
+
+            # Clean Excel column names (spaces / non-breaking spaces / capitalization)
+            sg_df.columns = (
+                sg_df.columns
+                .astype(str)
+                .str.replace("\u00a0", " ", regex=False)
+                .str.strip()
+            )
+
+            # Accept subgroup header case-insensitively
+            sg_df = sg_df.rename(columns={
+                c: "Subgroup"
+                for c in sg_df.columns
+                if c.strip().lower() == "subgroup"
+            })
 
             required_cols = [
                 "Subgroup",
@@ -723,6 +714,21 @@ if uploaded_file is not None:
             text=hover_text,
             hovertemplate="%{text}<extra></extra>",
             name="Uploaded samples"
+        )
+    )
+
+    # Small black centre point, as in the garnet application
+    fig.add_trace(
+        go.Scatter(
+            x=df["x"], y=df["y"],
+            mode="markers",
+            marker=dict(
+                size=max(3.0, point_size * 0.22),
+                color="black",
+                line=dict(width=0)
+            ),
+            hoverinfo="skip",
+            showlegend=False
         )
     )
 
