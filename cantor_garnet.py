@@ -7,6 +7,7 @@ import streamlit as st
 st.set_page_config(layout="wide", page_title="Cantor Grids")
 
 st.title("Cantor Grids – Four-Parameter Compositional Visualization")
+st.caption("Build: v9 — in-plot Mahalanobis statistics box")
 st.caption(
     "Define four compositional parameters, create subgroup fields from parameter ranges, "
     "and upload your own four-parameter dataset."
@@ -250,7 +251,7 @@ def add_subgroup_fields(fig, subgroup_results):
                     fillcolor=fill,
                     name=sg["name"],
                     legendgroup=sg["name"],
-                    showlegend=first_trace,
+                    showlegend=False,
                     hovertemplate=(
                         f"<b>{sg['name']}</b><br>"
                         f"AB = {int(ab)}<br>"
@@ -760,12 +761,12 @@ if uploaded_file is not None:
     else:
         first_locality = "not specified"
 
-    # Build in-plot statistical summary text, analogous to the garnet application
+    # Build in-plot statistical summary text exactly in the style of the garnet application
     stats_legend_text = (
-        "<span style='font-size:30px; font-weight:bold;'>Subgroup Classification</span><br>"
-        "<span style='font-size:20px; font-style:italic;'>Classification based on Mahalanobis distance</span><br>"
-        "<span style='font-size:20px; font-style:italic;'>using a diagonal covariance approximation</span><br><br>"
-        f"<span style='font-size:23px;'><b>Locality:</b> {first_locality}</span><br><br>"
+        "<span style='font-size:40px; font-weight:bold;'>Subgroup Classification</span><br>"
+        "<span style='font-size:23px; font-style:italic;'>Classification based on Mahalanobis distance</span><br>"
+        "<span style='font-size:23px; font-style:italic;'>using a diagonal covariance approximation</span><br><br>"
+        f"<span style='font-size:30px;'>Locality: {first_locality}</span><br><br>"
     )
 
     for idx, row in summary_df.iterrows():
@@ -775,9 +776,11 @@ if uploaded_file is not None:
         color = SUBGROUP_COLORS[idx % len(SUBGROUP_COLORS)]
 
         stats_legend_text += (
-            f'<span style="color:{color}; font-size:30px;">■</span> '
-            f'<span style="font-size:23px; font-weight:bold;">{subgroup_name}</span> '
-            f'<span style="font-size:21px;">{count} points ({pct:.1f}%)</span><br>'
+            f'<span style="color:{color}; font-size:42px; vertical-align:middle;">■</span> '
+            f'<span style="font-size:31px; font-weight:bold; vertical-align:middle;">{subgroup_name}</span> '
+            f'<span style="font-size:26px; vertical-align:middle;">'
+            f'{count} points ({pct:.1f}%)'
+            f'</span><br>'
         )
 
     fig = go.Figure()
@@ -879,7 +882,8 @@ if uploaded_file is not None:
             ),
             text=hover_text,
             hovertemplate="%{text}<extra></extra>",
-            name="Uploaded samples"
+            name="Uploaded samples",
+            showlegend=False
         )
     )
 
@@ -937,25 +941,44 @@ if uploaded_file is not None:
         hoverlabel=dict(font_size=16)
     )
 
-    # Statistics text box inside the plot.
-    # Use one Plotly annotation with its own white background and border;
-    # this is more robust in Streamlit than a separate shape + annotation.
-    fig.add_annotation(
-        x=0.018,
-        y=0.982,
+    # ========================================================
+    # IN-PLOT STATISTICS BOX — same construction as garnet app
+    # ========================================================
+
+    # White rectangle behind the statistics text
+    fig.add_shape(
+        type="rect",
         xref="paper",
         yref="paper",
-        text=stats_legend_text,
-        showarrow=False,
-        xanchor="left",
-        yanchor="top",
-        align="left",
-        font=dict(size=20, color="black"),
-        bgcolor="rgba(255,255,255,0.97)",
-        bordercolor="black",
-        borderwidth=2,
-        borderpad=8,
-        opacity=1.0
+        x0=0.015,
+        x1=0.55,
+        y0=0.60,
+        y1=0.98,
+        fillcolor="white",
+        line=dict(color="black", width=3),
+        layer="above"
+    )
+
+    # IMPORTANT: use update_layout(annotations=[...]) exactly as in the garnet script
+    fig.update_layout(
+        annotations=[
+            dict(
+                x=0.015,
+                y=0.98,
+                xref="paper",
+                yref="paper",
+                text=stats_legend_text,
+                showarrow=False,
+                font=dict(size=28, color="black"),
+                bgcolor="rgba(0,0,0,0)",
+                borderwidth=0,
+                xanchor="left",
+                yanchor="top",
+                align="left",
+                textangle=0
+            )
+        ],
+        showlegend=False
     )
 
     st.plotly_chart(fig, use_container_width=True)
