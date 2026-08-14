@@ -780,36 +780,49 @@ if uploaded_file is not None:
     count_fs = int(26 * legend_scale)
 
     # Dynamic vertical statistics-box size.
-    # Use tighter line metrics derived from the actual visible structure.
-    # This avoids excessive empty space when many subgroups are present.
+    # Calculate the required height in PIXELS from the actual font sizes and
+    # convert it to Plotly paper coordinates. This keeps the rectangle around
+    # the complete legend even when the plot height or legend scale changes.
+    PLOT_HEIGHT = 950
 
-    # Relative vertical contributions in Plotly paper coordinates.
-    title_h = 0.050 * legend_scale
-    method_h = 0.032 * legend_scale
-    locality_h = 0.040 * legend_scale
-    subgroup_h = 0.033 * legend_scale
+    title_line_px = title_fs * 1.35
+    method_line_px = method_fs * 1.45
+    locality_line_px = locality_fs * 1.35
 
-    # Small gaps between text blocks, plus compact top/bottom padding.
-    gap_after_methods = 0.018 * legend_scale
-    gap_before_groups = 0.020 * legend_scale
-    box_padding = 0.020 * legend_scale
-
-    legend_height = (
-        box_padding
-        + title_h
-        + 2 * method_h
-        + gap_after_methods
-        + locality_h
-        + gap_before_groups
-        + n_subgroups * subgroup_h
-        + box_padding
+    # Each subgroup row must accommodate the large coloured square as well as
+    # the group/count text. A little extra spacing prevents glyphs touching.
+    subgroup_line_px = max(
+        square_fs * 1.10,
+        group_fs * 1.40,
+        count_fs * 1.40
     )
 
-    # Keep the box within the plotting area without forcing an oversized minimum.
-    legend_height = min(0.93, max(0.24, legend_height))
+    # The HTML contains <br><br> after the method block and after locality.
+    gap_after_methods_px = 20 * legend_scale
+    gap_before_groups_px = 26 * legend_scale
+
+    # Top/bottom breathing room inside the white rectangle.
+    padding_top_px = 18 * legend_scale
+    padding_bottom_px = 24 * legend_scale
+
+    legend_height_px = (
+        padding_top_px
+        + title_line_px
+        + 2 * method_line_px
+        + gap_after_methods_px
+        + locality_line_px
+        + gap_before_groups_px
+        + n_subgroups * subgroup_line_px
+        + padding_bottom_px
+    )
+
+    legend_height = legend_height_px / PLOT_HEIGHT
+
+    # Keep the rectangle inside the plotting domain.
+    legend_height = min(0.94, max(0.24, legend_height))
 
     legend_y1 = 0.98
-    legend_y0 = max(0.025, legend_y1 - legend_height)
+    legend_y0 = max(0.02, legend_y1 - legend_height)
 
     # Approximate width from longest rendered legend entry.
     # Width follows the longest complete visible entry, not separate name/count maxima.
@@ -991,7 +1004,7 @@ if uploaded_file is not None:
         paper_bgcolor="white",
         autosize=False,
         width=2260,
-        height=950,
+        height=PLOT_HEIGHT,
         xaxis=dict(
             title=dict(
                 text=f"Sum of {labels[0]} (%) + {labels[1]} (%)",
