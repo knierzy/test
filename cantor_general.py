@@ -7,7 +7,7 @@ import streamlit as st
 st.set_page_config(layout="wide", page_title="Cantor Grids")
 
 st.title("Cantor Grids – Four-Parameter Compositional Visualization")
-st.caption("Build: v15 — filled subgroup fields")
+st.caption("Build: V17 — layered subgroup / colorbar sample markers")
 st.caption(
     "Define four compositional parameters, create subgroup fields from parameter ranges, "
     "and upload your own four-parameter dataset."
@@ -935,38 +935,93 @@ if uploaded_file is not None:
         )
     ]
 
-    # Outer black ring
+    # ========================================================
+    # Layered sample markers
+    # Outer ring = continuous colorbar value A / (A+B)
+    # Inner core = nearest subgroup from minimum Mahalanobis distance
+    # ========================================================
+
+    subgroup_color_map = {
+        sg["name"]: SUBGROUP_COLORS[i % len(SUBGROUP_COLORS)]
+        for i, sg in enumerate(generated_subgroups)
+        if not sg["points"].empty
+    }
+
+    inner_group_colors = [
+        subgroup_color_map.get(name, "rgba(120,120,120,0.95)")
+        for name in df["Subgroup"]
+    ]
+
+    outer_black_size = point_size + 10
+    color_ring_size = point_size + 8
+    white_cutout_size = max(6, point_size + 1)
+    inner_core_size = max(5, point_size - 1)
+    center_dot_size = max(2.5, point_size * 0.22)
+
+    # 1) Black outer frame
     fig.add_trace(
         go.Scatter(
             x=df["x"], y=df["y"],
             mode="markers",
             marker=dict(
-                size=point_size + 3,
+                size=outer_black_size,
                 color="rgba(0,0,0,0)",
                 line=dict(color="black", width=2.5)
             ),
-            text=hover_text,
-            hovertemplate="%{text}<extra></extra>",
+            hoverinfo="skip",
             showlegend=False
         )
     )
 
-    # Colored sample marker
+    # 2) Outer ring: continuous colorbar value
     fig.add_trace(
         go.Scatter(
             x=df["x"], y=df["y"],
             mode="markers",
             marker=dict(
-                size=point_size,
+                size=color_ring_size,
                 color=ratio,
                 colorscale=colorscale,
                 cmin=0,
                 cmax=1,
                 opacity=0.95,
+                line=dict(width=0),
                 colorbar=dict(
                     title=f"{labels[0]} / ({labels[0]} + {labels[1]})",
                     thickness=20
                 )
+            ),
+            hoverinfo="skip",
+            showlegend=False
+        )
+    )
+
+    # 3) White separator ring
+    fig.add_trace(
+        go.Scatter(
+            x=df["x"], y=df["y"],
+            mode="markers",
+            marker=dict(
+                size=white_cutout_size,
+                color="white",
+                line=dict(width=0),
+                opacity=1
+            ),
+            hoverinfo="skip",
+            showlegend=False
+        )
+    )
+
+    # 4) Inner core: color of nearest subgroup by Mahalanobis distance
+    fig.add_trace(
+        go.Scatter(
+            x=df["x"], y=df["y"],
+            mode="markers",
+            marker=dict(
+                size=inner_core_size,
+                color=inner_group_colors,
+                line=dict(color="black", width=1),
+                opacity=1
             ),
             text=hover_text,
             hovertemplate="%{text}<extra></extra>",
@@ -975,13 +1030,13 @@ if uploaded_file is not None:
         )
     )
 
-    # Small black centre point, as in the garnet application
+    # 5) Small black centre point
     fig.add_trace(
         go.Scatter(
             x=df["x"], y=df["y"],
             mode="markers",
             marker=dict(
-                size=max(3.0, point_size * 0.22),
+                size=center_dot_size,
                 color="black",
                 line=dict(width=0)
             ),
@@ -1029,7 +1084,8 @@ if uploaded_file is not None:
             range=[0, 100],
             constrain="domain",
             dtick=10,
-            tickfont=dict(size=24, color="black"),
+            tickfont=dict(size=16, color="black"),
+            automargin=True,
             showgrid=False,
             zeroline=False,
             showline=False,
