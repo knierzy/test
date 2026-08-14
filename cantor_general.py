@@ -7,7 +7,7 @@ import streamlit as st
 st.set_page_config(layout="wide", page_title="Cantor Grids")
 
 st.title("Cantor Grids – Four-Parameter Compositional Visualization")
-st.caption("Build: V17 — layered subgroup / colorbar sample markers")
+st.caption("Build: V18 — enlarged subgroup core / colorbar halo")
 st.caption(
     "Define four compositional parameters, create subgroup fields from parameter ranges, "
     "and upload your own four-parameter dataset."
@@ -954,8 +954,11 @@ if uploaded_file is not None:
 
     outer_black_size = point_size + 10
     color_ring_size = point_size + 8
-    white_cutout_size = max(6, point_size + 1)
-    inner_core_size = max(5, point_size - 1)
+
+    # Larger inner subgroup core; no white separator ring.
+    # This makes the categorical subgroup color visually dominant while
+    # retaining a clearly visible continuous-value halo around it.
+    inner_core_size = max(7, point_size + 3)
     center_dot_size = max(2.5, point_size * 0.22)
 
     # 1) Black outer frame
@@ -996,23 +999,7 @@ if uploaded_file is not None:
         )
     )
 
-    # 3) White separator ring
-    fig.add_trace(
-        go.Scatter(
-            x=df["x"], y=df["y"],
-            mode="markers",
-            marker=dict(
-                size=white_cutout_size,
-                color="white",
-                line=dict(width=0),
-                opacity=1
-            ),
-            hoverinfo="skip",
-            showlegend=False
-        )
-    )
-
-    # 4) Inner core: color of nearest subgroup by Mahalanobis distance
+    # 3) Inner core: color of nearest subgroup by Mahalanobis distance
     fig.add_trace(
         go.Scatter(
             x=df["x"], y=df["y"],
@@ -1030,7 +1017,7 @@ if uploaded_file is not None:
         )
     )
 
-    # 5) Small black centre point
+    # 4) Small black centre point
     fig.add_trace(
         go.Scatter(
             x=df["x"], y=df["y"],
