@@ -7,7 +7,7 @@ import streamlit as st
 st.set_page_config(layout="wide", page_title="Cantor Grids")
 
 st.title("Cantor Grids – Four-Parameter Compositional Visualization")
-st.caption("Build: V18 — enlarged subgroup core / colorbar halo")
+st.caption("Build: V19 — thinner outer marker outline")
 st.caption(
     "Define four compositional parameters, create subgroup fields from parameter ranges, "
     "and upload your own four-parameter dataset."
@@ -969,7 +969,7 @@ if uploaded_file is not None:
             marker=dict(
                 size=outer_black_size,
                 color="rgba(0,0,0,0)",
-                line=dict(color="black", width=2.5)
+                line=dict(color="black", width=1.5)
             ),
             hoverinfo="skip",
             showlegend=False
