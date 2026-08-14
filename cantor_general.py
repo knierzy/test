@@ -991,7 +991,7 @@ if uploaded_file is not None:
         paper_bgcolor="white",
         autosize=False,
         width=2260,
-        height=1210,
+        height=950,
         xaxis=dict(
             title=dict(
                 text=f"Sum of {labels[0]} (%) + {labels[1]} (%)",
