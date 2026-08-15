@@ -234,10 +234,24 @@ def add_subgroup_fields(fig, subgroup_results):
         first_trace = True
 
         for ab, group in pts.groupby("AB"):
-            x_min = float(group["x"].min()) - 0.45
-            x_max = float(group["x"].max()) + 0.45
-            y_min = float(group["y"].min()) - 0.45
-            y_max = float(group["y"].max()) + 0.45
+           x_min = float(group["x"].min()) - 0.45
+           x_max = float(group["x"].max()) + 0.45
+           y_min = float(group["y"].min()) - 0.45 
+           y_max = float(group["y"].max()) + 0.45
+
+# Clip subgroup rectangle to the valid Cantor-grid slice
+          row = int(99 - ab)
+          row_start, height, _ = RECTANGLES[row]
+
+          valid_x_min = float(row_start)
+          valid_x_max = float(row_start + height)
+          valid_y_min = 0.0
+          valid_y_max = float(100 - ab)
+
+          x_min = max(x_min, valid_x_min)
+          x_max = min(x_max, valid_x_max)
+          y_min = max(y_min, valid_y_min)
+          y_max = min(y_max, valid_y_max)
 
             # Colored rectangular subfield, matching the garnet-style display.
             fig.add_trace(
