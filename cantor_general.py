@@ -289,7 +289,7 @@ def add_subgroup_fields(fig, subgroup_results):
                     x=hull_x,
                     y=hull_y,
                     mode="lines",
-                    line=dict(color="black", width=0.6, dash="dash"),
+                    line=dict(color="black", width=1, dash="dash"),
                     fill=None,
                     hoverinfo="skip",
                     legendgroup=sg["name"],
