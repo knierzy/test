@@ -896,8 +896,8 @@ if uploaded_file is not None:
     # Build in-plot statistical summary text exactly in the style of the garnet application
     stats_legend_text = (
         f"<span style='font-size:{title_fs}px; font-weight:bold;'>Subgroup Classification</span><br>"
-        f"<span style='font-size:{method_fs}px; font-style:italic;'>Classification based on Mahalanobis distance</span><br>"
-        f"<span style='font-size:{method_fs}px; font-style:italic;'>using a diagonal covariance approximation</span><br><br>"
+        f"<span style='font-size:{method_fs}px; font-style:italic;'>Classification -> Mahalanobis distance</span><br>"
+        f"<span style='font-size:{method_fs}px; font-style:italic;'>(diagonal covariance approximation)</span><br><br>"
         f"<span style='font-size:{locality_fs}px;'>Locality: {first_locality}</span><br><br>"
     )
 
