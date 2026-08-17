@@ -7,7 +7,7 @@ import streamlit as st
 st.set_page_config(layout="wide", page_title="Cantor Grids")
 
 st.title("Cantor Grids – Four-Parameter Compositional Visualization")
-st.caption("Build: V21 — thin black convex hull around each subgroup field")
+st.caption("Build: V22 — smaller adjustable statistics box")
 st.caption(
     "Define four compositional parameters, create subgroup fields from parameter ranges, "
     "and upload your own four-parameter dataset."
@@ -768,9 +768,9 @@ with pc2:
 
 legend_scale = st.slider(
     "Statistics box size factor",
-    min_value=0.7,
+    min_value=0.5,
     max_value=1.8,
-    value=1.0,
+    value=0.8,
     step=0.05,
     help="Scales the in-plot statistics box and text. Useful when many subgroups are defined."
 )
