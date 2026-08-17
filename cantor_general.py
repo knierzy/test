@@ -1,5 +1,3 @@
-import itertools
-import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
@@ -7,7 +5,7 @@ import streamlit as st
 st.set_page_config(layout="wide", page_title="Cantor Grids")
 
 st.title("Cantor Grids – Four-Parameter Compositional Visualization")
-st.caption("Build: V19 — thinner outer marker outline")
+st.caption("Build: V20 — thin convex hull around each subgroup field")
 st.caption(
     "Define four compositional parameters, create subgroup fields from parameter ranges, "
     "and upload your own four-parameter dataset."
@@ -278,6 +276,36 @@ def add_subgroup_fields(fig, subgroup_results):
             )
             first_trace = False
 
+        # Thin outer boundary around the complete subgroup:
+        # convex hull of all generated/scattered subfield positions.
+        hull = convex_hull_2d(pts[["x", "y"]].to_numpy())
+        if len(hull) >= 3:
+            hull_x = [p[0] for p in hull] + [hull[0][0]]
+            hull_y = [p[1] for p in hull] + [hull[0][1]]
+            fig.add_trace(
+                go.Scatter(
+                    x=hull_x,
+                    y=hull_y,
+                    mode="lines",
+                    line=dict(color=color, width=1.0),
+                    fill=None,
+                    hoverinfo="skip",
+                    legendgroup=sg["name"],
+                    showlegend=False
+                )
+            )
+        elif len(hull) == 2:
+            fig.add_trace(
+                go.Scatter(
+                    x=[hull[0][0], hull[1][0]],
+                    y=[hull[0][1], hull[1][1]],
+                    mode="lines",
+                    line=dict(color=color, width=1.0),
+                    hoverinfo="skip",
+                    legendgroup=sg["name"],
+                    showlegend=False
+                )
+            )
 
 
 def subgroup_statistics_from_generated(subgroup_results):
