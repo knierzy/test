@@ -878,8 +878,8 @@ if uploaded_file is not None:
 
     longest_entry_chars = max(
         [len("Subgroup Classification"),
-         len("Classification based on Mahalanobis distance"),
-         len("using a diagonal covariance approximation"),
+         len("Classification -> Mahalanobis distance"),
+         len("(diagonal covariance approximation)"),
          len(f"Locality: {first_locality}")]
         + [len(x) for x in complete_entries]
     )
