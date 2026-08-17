@@ -7,7 +7,7 @@ import streamlit as st
 st.set_page_config(layout="wide", page_title="Cantor Grids")
 
 st.title("Cantor Grids – Four-Parameter Compositional Visualization")
-st.caption("Build: V22 — smaller adjustable statistics box")
+st.caption("Build: V23 — thinner dashed convex hull outlines")
 st.caption(
     "Define four compositional parameters, create subgroup fields from parameter ranges, "
     "and upload your own four-parameter dataset."
@@ -289,7 +289,7 @@ def add_subgroup_fields(fig, subgroup_results):
                     x=hull_x,
                     y=hull_y,
                     mode="lines",
-                    line=dict(color="black", width=1.0),
+                    line=dict(color="black", width=0.6, dash="dash"),
                     fill=None,
                     hoverinfo="skip",
                     legendgroup=sg["name"],
@@ -302,7 +302,7 @@ def add_subgroup_fields(fig, subgroup_results):
                     x=[hull[0][0], hull[1][0]],
                     y=[hull[0][1], hull[1][1]],
                     mode="lines",
-                    line=dict(color="black", width=1.0),
+                    line=dict(color="black", width=0.6, dash="dash"),
                     hoverinfo="skip",
                     legendgroup=sg["name"],
                     showlegend=False
