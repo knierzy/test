@@ -1199,7 +1199,7 @@ if uploaded_file is not None:
     st.subheader("Distance-based subgroup classification")
 
     st.caption(
-        "Classification is based on Mahalanobis distance using a diagonal "
+        "Classification -> Mahalanobis distance using a diagonal "
         "covariance approximation. Subgroup means and standard deviations "
         "are calculated from the valid integer compositions generated from "
         "the specified subgroup ranges."
