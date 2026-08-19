@@ -7,7 +7,7 @@ import streamlit as st
 st.set_page_config(layout="wide", page_title="Cantor Grids")
 
 st.title("Cantor Grids – Four-Parameter Compositional Visualization")
-st.caption("Build: V24 — subgroup-colored convex hulls with adjustable line width")
+st.caption("Build: V25 — 15 subgroup colors + colored adjustable convex hulls")
 st.caption(
     "Define four compositional parameters, create subgroup fields from parameter ranges, "
     "and upload your own four-parameter dataset."
@@ -49,16 +49,9 @@ X_LABELS = {
 }
 
 SUBGROUP_COLORS = [
-    "rgba(31,119,180,0.85)",
-    "rgba(255,127,14,0.85)",
-    "rgba(44,160,44,0.85)",
-    "rgba(214,39,40,0.85)",
-    "rgba(148,103,189,0.85)",
-    "rgba(140,86,75,0.85)",
-    "rgba(227,119,194,0.85)",
-    "rgba(127,127,127,0.85)",
-    "rgba(188,189,34,0.85)",
-    "rgba(23,190,207,0.85)"
+    "#4E79A7", "#F28E2B", "#E15759", "#76B7B2", "#59A14F",
+    "#EDC948", "#B07AA1", "#FF9DA7", "#9C755F", "#BAB0AC",
+    "#1F77B4", "#FF7F0E", "#2CA02C", "#D62728", "#9467BD",
 ]
 
 
