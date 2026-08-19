@@ -7,7 +7,7 @@ import streamlit as st
 st.set_page_config(layout="wide", page_title="Cantor Grids")
 
 st.title("Cantor Grids – Four-Parameter Compositional Visualization")
-st.caption("Build: V25 — 15 subgroup colors + colored adjustable convex hulls")
+st.caption("Build: V26 — 15 subgroup colors + robust alpha conversion")
 st.caption(
     "Define four compositional parameters, create subgroup fields from parameter ranges, "
     "and upload your own four-parameter dataset."
@@ -204,9 +204,38 @@ def convex_hull_2d(points):
     return lower[:-1] + upper[:-1]
 
 
-def rgba_with_alpha(rgba, alpha):
-    parts = rgba.replace("rgba(", "").replace(")", "").split(",")
-    return f"rgba({parts[0]},{parts[1]},{parts[2]},{alpha})"
+def rgba_with_alpha(color, alpha):
+    """
+    Return an rgba(...) string with the requested alpha.
+
+    Supports both:
+    - rgba(r,g,b,a)
+    - rgb(r,g,b)
+    - hexadecimal colors such as #4E79A7
+    """
+    color = str(color).strip()
+
+    if color.startswith("#"):
+        hex_color = color.lstrip("#")
+        if len(hex_color) == 3:
+            hex_color = "".join(ch * 2 for ch in hex_color)
+        if len(hex_color) != 6:
+            raise ValueError(f"Unsupported hex color: {color}")
+
+        r = int(hex_color[0:2], 16)
+        g = int(hex_color[2:4], 16)
+        b = int(hex_color[4:6], 16)
+        return f"rgba({r},{g},{b},{alpha})"
+
+    if color.startswith("rgba("):
+        parts = color.replace("rgba(", "").replace(")", "").split(",")
+        return f"rgba({parts[0].strip()},{parts[1].strip()},{parts[2].strip()},{alpha})"
+
+    if color.startswith("rgb("):
+        parts = color.replace("rgb(", "").replace(")", "").split(",")
+        return f"rgba({parts[0].strip()},{parts[1].strip()},{parts[2].strip()},{alpha})"
+
+    raise ValueError(f"Unsupported color format: {color}")
 
 
 def add_subgroup_fields(fig, subgroup_results, hull_width=1.0):
