@@ -7,7 +7,7 @@ import streamlit as st
 st.set_page_config(layout="wide", page_title="Cantor Grids")
 
 st.title("Cantor Grids – Four-Parameter Compositional Visualization")
-st.caption("Build: V23 — thinner dashed convex hull outlines")
+st.caption("Build: V24 — subgroup-colored convex hulls with adjustable line width")
 st.caption(
     "Define four compositional parameters, create subgroup fields from parameter ranges, "
     "and upload your own four-parameter dataset."
@@ -216,7 +216,7 @@ def rgba_with_alpha(rgba, alpha):
     return f"rgba({parts[0]},{parts[1]},{parts[2]},{alpha})"
 
 
-def add_subgroup_fields(fig, subgroup_results):
+def add_subgroup_fields(fig, subgroup_results, hull_width=1.0):
     """
     Draw subgroup fields as colored rectangular outlines only.
 
@@ -289,7 +289,7 @@ def add_subgroup_fields(fig, subgroup_results):
                     x=hull_x,
                     y=hull_y,
                     mode="lines",
-                    line=dict(color="black", width=1, dash="dash"),
+                    line=dict(color=color, width=hull_width, dash="dash"),
                     fill=None,
                     hoverinfo="skip",
                     legendgroup=sg["name"],
@@ -302,7 +302,7 @@ def add_subgroup_fields(fig, subgroup_results):
                     x=[hull[0][0], hull[1][0]],
                     y=[hull[0][1], hull[1][1]],
                     mode="lines",
-                    line=dict(color="black", width=0.6, dash="dash"),
+                    line=dict(color=color, width=hull_width, dash="dash"),
                     hoverinfo="skip",
                     legendgroup=sg["name"],
                     showlegend=False
@@ -757,13 +757,22 @@ uploaded_file = st.file_uploader("Upload Excel file (.xlsx)", type=["xlsx"])
 
 st.header("5. Plot settings")
 
-pc1, pc2 = st.columns(2)
+pc1, pc2, pc3 = st.columns(3)
 with pc1:
     point_size = st.slider("Sample point size", 3, 40, 7, 1)
 with pc2:
     colorscale = st.selectbox(
         "Sample color scale",
         ["Plasma", "Viridis", "Turbo", "Inferno", "Cividis", "RdYlBu"]
+    )
+with pc3:
+    subgroup_hull_width = st.slider(
+        "Subgroup convex hull line width",
+        min_value=0.2,
+        max_value=5.0,
+        value=1.0,
+        step=0.1,
+        help="Controls the thickness of the dashed outer convex-hull line around each subgroup."
     )
 
 legend_scale = st.slider(
@@ -947,7 +956,7 @@ if uploaded_file is not None:
         nonempty_subgroups = [
             sg for sg in generated_subgroups if not sg["points"].empty
         ]
-        add_subgroup_fields(fig, nonempty_subgroups)
+        add_subgroup_fields(fig, nonempty_subgroups, hull_width=subgroup_hull_width)
 
         if nonempty_subgroups:
             st.caption(
