@@ -2,12 +2,13 @@ import itertools
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
+from plotly.colors import sample_colorscale
 import streamlit as st
 
 st.set_page_config(layout="wide", page_title="Cantor Grids")
 
 st.title("Cantor Grids – Four-Parameter Compositional Visualization")
-st.caption("Build: V31 — optional samples + persistent subgroup box + black plot labels")
+st.caption("Build: V32 — Mahalanobis-linked subgroup colors without sample points")
 st.caption(
     "Define four compositional parameters, create subgroup fields from parameter ranges, "
     "and optionally add sample points manually or from Excel."
@@ -238,7 +239,7 @@ def rgba_with_alpha(color, alpha):
     raise ValueError(f"Unsupported color format: {color}")
 
 
-def add_subgroup_fields(fig, subgroup_results, hull_width=1.0):
+def add_subgroup_fields(fig, subgroup_results, hull_width=1.0, color_map=None):
     """
     Draw subgroup fields as colored rectangular outlines only.
 
@@ -251,7 +252,7 @@ def add_subgroup_fields(fig, subgroup_results, hull_width=1.0):
         if pts.empty:
             continue
 
-        color = SUBGROUP_COLORS[idx % len(SUBGROUP_COLORS)]
+        color = (color_map or {}).get(sg["name"], SUBGROUP_COLORS[idx % len(SUBGROUP_COLORS)])
         fill = rgba_with_alpha(color, 0.40)
         first_trace = True
 
@@ -366,6 +367,77 @@ def subgroup_statistics_from_generated(subgroup_results):
         sigmas[sg["name"]] = sigma
 
     return means, sigmas
+
+
+def symmetric_diagonal_mahalanobis(mu_i, sigma_i, mu_j, sigma_j):
+    """
+    Symmetric diagonal-covariance Mahalanobis-style distance between two subgroup
+    centroids. A pooled diagonal variance makes the pairwise distance symmetric.
+    """
+    pooled_sigma = np.sqrt((np.asarray(sigma_i, dtype=float) ** 2 +
+                            np.asarray(sigma_j, dtype=float) ** 2) / 2.0)
+    pooled_sigma = np.clip(pooled_sigma, 0.5, None)
+
+    delta = np.asarray(mu_i, dtype=float) - np.asarray(mu_j, dtype=float)
+    return float(np.sqrt(np.sum((delta / pooled_sigma) ** 2)))
+
+
+def subgroup_reference_distance_colors(subgroup_results, colorscale):
+    """
+    For plots without sample points:
+    1) calculate subgroup means and diagonal SDs,
+    2) choose the subgroup with the largest mean Mahalanobis-style distance
+       to all other subgroups as the reference (most compositionally distinct),
+    3) calculate every subgroup's distance from that reference,
+    4) map those distances continuously to the selected Plotly colorscale.
+    """
+    means, sigmas = subgroup_statistics_from_generated(subgroup_results)
+    names = [sg["name"] for sg in subgroup_results if sg["name"] in means]
+
+    if not names:
+        return None, {}, {}, means, sigmas
+
+    if len(names) == 1:
+        ref_name = names[0]
+        distances = {ref_name: 0.0}
+        color_map = {ref_name: sample_colorscale(colorscale, [0.0])[0]}
+        return ref_name, distances, color_map, means, sigmas
+
+    pairwise = {name: {} for name in names}
+
+    for i, name_i in enumerate(names):
+        for j, name_j in enumerate(names):
+            if i == j:
+                pairwise[name_i][name_j] = 0.0
+            elif name_j not in pairwise[name_i]:
+                d = symmetric_diagonal_mahalanobis(
+                    means[name_i], sigmas[name_i],
+                    means[name_j], sigmas[name_j]
+                )
+                pairwise[name_i][name_j] = d
+                pairwise[name_j][name_i] = d
+
+    mean_distance = {
+        name: float(np.mean([d for other, d in pairwise[name].items() if other != name]))
+        for name in names
+    }
+
+    # Most compositionally distinct subgroup = largest average distance to all others.
+    ref_name = max(mean_distance, key=mean_distance.get)
+    distances = {name: float(pairwise[ref_name][name]) for name in names}
+
+    max_distance = max(distances.values()) if distances else 0.0
+    if max_distance > 0:
+        normalized = {name: d / max_distance for name, d in distances.items()}
+    else:
+        normalized = {name: 0.0 for name in names}
+
+    color_map = {
+        name: sample_colorscale(colorscale, [normalized[name]])[0]
+        for name in names
+    }
+
+    return ref_name, distances, color_map, means, sigmas
 
 
 def classify_diagonal_mahalanobis(df_input, subgroup_results):
@@ -902,6 +974,10 @@ show_gray_grid = st.checkbox("Show gray Cantor grid", value=True)
 has_samples = df is not None and not df.empty
 
 if has_samples:
+    reference_subgroup = None
+    subgroup_reference_distances = {}
+    subgroup_distance_color_map = {}
+
     df, subgroup_means, subgroup_sigmas = classify_diagonal_mahalanobis(
         df,
         generated_subgroups
@@ -920,9 +996,14 @@ if has_samples:
     else:
         first_locality = "not specified"
 else:
-    subgroup_means, subgroup_sigmas = subgroup_statistics_from_generated(
-        generated_subgroups
-    )
+    (
+        reference_subgroup,
+        subgroup_reference_distances,
+        subgroup_distance_color_map,
+        subgroup_means,
+        subgroup_sigmas,
+    ) = subgroup_reference_distance_colors(generated_subgroups, colorscale)
+
     summary_df = pd.DataFrame(columns=["Subgroup", "Points", "Percent"])
     first_locality = "no sample points"
 
@@ -1060,7 +1141,7 @@ else:
         sg["name"] for sg in generated_subgroups if not sg["points"].empty
     ]
     longest_entry_chars = max(
-        [len("Subgroups")] + [len(name) for name in nonempty_names]
+        [len("Subgroups"), len(f"Reference: {reference_subgroup} (most compositionally distinct)")] + [len(name) + 9 for name in nonempty_names]
     )
 
     legend_width = min(
@@ -1070,18 +1151,27 @@ else:
     legend_x0 = 0.015
     legend_x1 = min(0.92, legend_x0 + legend_width)
 
+    ref_text = reference_subgroup if reference_subgroup is not None else "not available"
     stats_legend_text = (
-        f"<span style='font-size:{title_fs}px; font-weight:bold;'>Subgroups</span><br><br>"
+        f"<span style='font-size:{title_fs}px; font-weight:bold;'>Subgroups</span><br>"
+        f"<span style='font-size:{int(22 * legend_scale)}px; font-style:italic;'>"
+        f"Reference: {ref_text} (most compositionally distinct)</span><br><br>"
     )
 
     for idx, sg in enumerate(
         [sg for sg in generated_subgroups if not sg["points"].empty]
     ):
-        color = SUBGROUP_COLORS[idx % len(SUBGROUP_COLORS)]
+        color = subgroup_distance_color_map.get(
+            sg["name"], SUBGROUP_COLORS[idx % len(SUBGROUP_COLORS)]
+        )
+        distance = subgroup_reference_distances.get(sg["name"], np.nan)
+        distance_txt = f"{distance:.2f}" if np.isfinite(distance) else "n/a"
+
         stats_legend_text += (
             f'<span style="color:{color}; font-size:{square_fs}px; vertical-align:middle;">■</span> '
             f'<span style="font-size:{group_fs}px; font-weight:bold; vertical-align:middle;">'
-            f'{sg["name"]}</span><br>'
+            f'{sg["name"]}</span> '
+            f'<span style="font-size:{int(23 * legend_scale)}px;">d={distance_txt}</span><br>'
         )
 fig = go.Figure()
 
@@ -1115,7 +1205,15 @@ if show_subgroups and generated_subgroups:
     nonempty_subgroups = [
         sg for sg in generated_subgroups if not sg["points"].empty
     ]
-    add_subgroup_fields(fig, nonempty_subgroups, hull_width=subgroup_hull_width)
+    active_subgroup_color_map = (
+        subgroup_distance_color_map if not has_samples else None
+    )
+    add_subgroup_fields(
+        fig,
+        nonempty_subgroups,
+        hull_width=subgroup_hull_width,
+        color_map=active_subgroup_color_map
+    )
 
     if show_subgroup_labels:
         for i, sg in enumerate(nonempty_subgroups):
@@ -1157,6 +1255,36 @@ if show_subgroups and generated_subgroups:
             "Subgroup fields drawn: "
             + ", ".join(sg["name"] for sg in nonempty_subgroups)
         )
+
+# Continuous subgroup-distance colorbar when no sample points are plotted.
+if (not has_samples) and reference_subgroup is not None and subgroup_reference_distances:
+    max_ref_distance = max(subgroup_reference_distances.values())
+
+    # Invisible marker solely to render the continuous colorbar.
+    fig.add_trace(
+        go.Scatter(
+            x=[None],
+            y=[None],
+            mode="markers",
+            marker=dict(
+                size=0.1,
+                color=[0.0],
+                colorscale=colorscale,
+                cmin=0.0,
+                cmax=max(max_ref_distance, 1e-9),
+                showscale=True,
+                colorbar=dict(
+                    title=(
+                        "Mahalanobis distance<br>"
+                        f"from {reference_subgroup}"
+                    ),
+                    thickness=20
+                )
+            ),
+            hoverinfo="skip",
+            showlegend=False
+        )
+    )
 
 if has_samples:
     # Uploaded samples
