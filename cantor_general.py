@@ -7,7 +7,7 @@ import streamlit as st
 st.set_page_config(layout="wide", page_title="Cantor Grids")
 
 st.title("Cantor Grids – Four-Parameter Compositional Visualization")
-st.caption("Build: V27 — optional two-letter subgroup labels")
+st.caption("Build: V28 — visible two-letter subgroup labels")
 st.caption(
     "Define four compositional parameters, create subgroup fields from parameter ranges, "
     "and upload your own four-parameter dataset."
@@ -999,21 +999,25 @@ if uploaded_file is not None:
                 letters = "".join(ch for ch in str(sg["name"]) if ch.isalpha())
                 short_label = (letters[:2] if len(letters) >= 2 else letters).upper()
 
-                fig.add_annotation(
-                    x=label_x,
-                    y=label_y,
-                    text=f"<b>{short_label}</b>",
-                    showarrow=False,
-                    font=dict(
-                        size=20,
-                        color=SUBGROUP_COLORS[i % len(SUBGROUP_COLORS)],
-                        family="Arial Black"
-                    ),
-                    bgcolor="rgba(255,255,255,0.72)",
-                    bordercolor=SUBGROUP_COLORS[i % len(SUBGROUP_COLORS)],
-                    borderwidth=1,
-                    borderpad=2,
-                    opacity=0.95
+                # Use a text trace instead of a layout annotation.
+                # The statistics box later replaces layout.annotations, which
+                # previously removed these subgroup labels.
+                fig.add_trace(
+                    go.Scatter(
+                        x=[label_x],
+                        y=[label_y],
+                        mode="text",
+                        text=[f"<b>{short_label}</b>"],
+                        textposition="middle center",
+                        textfont=dict(
+                            size=20,
+                            color=SUBGROUP_COLORS[i % len(SUBGROUP_COLORS)],
+                            family="Arial Black"
+                        ),
+                        hoverinfo="skip",
+                        showlegend=False,
+                        legendgroup=sg["name"]
+                    )
                 )
 
         if nonempty_subgroups:
