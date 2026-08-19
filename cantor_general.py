@@ -7,7 +7,7 @@ import streamlit as st
 st.set_page_config(layout="wide", page_title="Cantor Grids")
 
 st.title("Cantor Grids – Four-Parameter Compositional Visualization")
-st.caption("Build: V30 — optional samples + persistent subgroup box + black labels")
+st.caption("Build: V31 — optional samples + persistent subgroup box + black plot labels")
 st.caption(
     "Define four compositional parameters, create subgroup fields from parameter ranges, "
     "and optionally add sample points manually or from Excel."
@@ -1143,7 +1143,7 @@ if show_subgroups and generated_subgroups:
                     textposition="middle center",
                     textfont=dict(
                         size=20,
-                        color=SUBGROUP_COLORS[i % len(SUBGROUP_COLORS)],
+                        color="black",
                         family="Arial Black"
                     ),
                     hoverinfo="skip",
