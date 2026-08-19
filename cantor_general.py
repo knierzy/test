@@ -7,7 +7,7 @@ import streamlit as st
 st.set_page_config(layout="wide", page_title="Cantor Grids")
 
 st.title("Cantor Grids – Four-Parameter Compositional Visualization")
-st.caption("Build: V29 — optional sample points (none, manual, or Excel)")
+st.caption("Build: V30 — optional samples + persistent subgroup box + black labels")
 st.caption(
     "Define four compositional parameters, create subgroup fields from parameter ranges, "
     "and optionally add sample points manually or from Excel."
@@ -1032,9 +1032,57 @@ if has_samples:
         )
 
 else:
-    legend_scale = 1.0
-    legend_x0 = legend_x1 = legend_y0 = legend_y1 = 0.0
-    stats_legend_text = ""
+    # Keep a subgroup legend box visible even when no sample points are plotted.
+    n_subgroups = max(len([sg for sg in generated_subgroups if not sg["points"].empty]), 1)
+
+    title_fs = int(40 * legend_scale)
+    square_fs = int(42 * legend_scale)
+    group_fs = int(31 * legend_scale)
+
+    subgroup_line_px = max(square_fs * 1.10, group_fs * 1.40)
+    padding_top_px = 18 * legend_scale
+    padding_bottom_px = 24 * legend_scale
+    gap_before_groups_px = 18 * legend_scale
+
+    legend_height_px = (
+        padding_top_px
+        + title_fs * 1.35
+        + gap_before_groups_px
+        + n_subgroups * subgroup_line_px
+        + padding_bottom_px
+    )
+
+    legend_height = min(0.94, max(0.18, legend_height_px / PLOT_HEIGHT))
+    legend_y1 = 0.98
+    legend_y0 = max(0.02, legend_y1 - legend_height)
+
+    nonempty_names = [
+        sg["name"] for sg in generated_subgroups if not sg["points"].empty
+    ]
+    longest_entry_chars = max(
+        [len("Subgroups")] + [len(name) for name in nonempty_names]
+    )
+
+    legend_width = min(
+        0.62,
+        max(0.28, (0.10 + longest_entry_chars * 0.0080) * legend_scale)
+    )
+    legend_x0 = 0.015
+    legend_x1 = min(0.92, legend_x0 + legend_width)
+
+    stats_legend_text = (
+        f"<span style='font-size:{title_fs}px; font-weight:bold;'>Subgroups</span><br><br>"
+    )
+
+    for idx, sg in enumerate(
+        [sg for sg in generated_subgroups if not sg["points"].empty]
+    ):
+        color = SUBGROUP_COLORS[idx % len(SUBGROUP_COLORS)]
+        stats_legend_text += (
+            f'<span style="color:{color}; font-size:{square_fs}px; vertical-align:middle;">■</span> '
+            f'<span style="font-size:{group_fs}px; font-weight:bold; vertical-align:middle;">'
+            f'{sg["name"]}</span><br>'
+        )
 fig = go.Figure()
 
 # Background first
@@ -1308,46 +1356,46 @@ fig.add_shape(
     layer="above"
 )
 
-if has_samples:
-    # ========================================================
-    # IN-PLOT STATISTICS BOX — same construction as garnet app
-    # ========================================================
+# ========================================================
+# IN-PLOT STATISTICS / SUBGROUP BOX
+# ========================================================
 
-    # White rectangle behind the statistics text
-    fig.add_shape(
-        type="rect",
-        xref="paper",
-        yref="paper",
-        x0=legend_x0,
-        x1=legend_x1,
-        y0=legend_y0,
-        y1=legend_y1,
-        fillcolor="white",
-        line=dict(color="black", width=3),
-        layer="above"
-    )
+# White rectangle behind the statistics text
+fig.add_shape(
+    type="rect",
+    xref="paper",
+    yref="paper",
+    x0=legend_x0,
+    x1=legend_x1,
+    y0=legend_y0,
+    y1=legend_y1,
+    fillcolor="white",
+    line=dict(color="black", width=3),
+    layer="above"
+)
 
-    # IMPORTANT: use update_layout(annotations=[...]) exactly as in the garnet script
-    fig.update_layout(
-        annotations=[
-            dict(
-                x=legend_x0,
-                y=legend_y1,
-                xref="paper",
-                yref="paper",
-                text=stats_legend_text,
-                showarrow=False,
-                font=dict(size=max(16, int(28 * legend_scale)), color="black"),
-                bgcolor="rgba(0,0,0,0)",
-                borderwidth=0,
-                xanchor="left",
-                yanchor="top",
-                align="left",
-                textangle=0
-            )
-        ],
-        showlegend=False
-    )
+# IMPORTANT: use update_layout(annotations=[...]) exactly as in the garnet script
+fig.update_layout(
+    annotations=[
+        dict(
+            x=legend_x0,
+            y=legend_y1,
+            xref="paper",
+            yref="paper",
+            text=stats_legend_text,
+            showarrow=False,
+            font=dict(size=max(16, int(28 * legend_scale)), color="black"),
+            bgcolor="rgba(0,0,0,0)",
+            borderwidth=0,
+            xanchor="left",
+            yanchor="top",
+            align="left",
+            textangle=0
+        )
+    ],
+    showlegend=False
+)
+
 
 
 st.plotly_chart(fig, use_container_width=True)
