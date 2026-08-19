@@ -8,7 +8,7 @@ import streamlit as st
 st.set_page_config(layout="wide", page_title="Cantor Grids")
 
 st.title("Cantor Grids – Four-Parameter Compositional Visualization")
-st.caption("Build: V32 — Mahalanobis-linked subgroup colors without sample points")
+st.caption("Build: V33 — log-Euclidean subgroup colors without sample points")
 st.caption(
     "Define four compositional parameters, create subgroup fields from parameter ranges, "
     "and optionally add sample points manually or from Excel."
@@ -369,27 +369,34 @@ def subgroup_statistics_from_generated(subgroup_results):
     return means, sigmas
 
 
-def symmetric_diagonal_mahalanobis(mu_i, sigma_i, mu_j, sigma_j):
+def log_euclidean_distance(mu_i, mu_j):
     """
-    Symmetric diagonal-covariance Mahalanobis-style distance between two subgroup
-    centroids. A pooled diagonal variance makes the pairwise distance symmetric.
-    """
-    pooled_sigma = np.sqrt((np.asarray(sigma_i, dtype=float) ** 2 +
-                            np.asarray(sigma_j, dtype=float) ** 2) / 2.0)
-    pooled_sigma = np.clip(pooled_sigma, 0.5, None)
+    Log-Euclidean distance between two four-component subgroup centroids.
 
-    delta = np.asarray(mu_i, dtype=float) - np.asarray(mu_j, dtype=float)
-    return float(np.sqrt(np.sum((delta / pooled_sigma) ** 2)))
+    Each component is transformed with ln(x + 1), so zeros are allowed:
+        d = sqrt(sum((ln(mu_i + 1) - ln(mu_j + 1))^2))
+    """
+    x = np.asarray(mu_i, dtype=float)
+    y = np.asarray(mu_j, dtype=float)
+
+    return float(
+        np.sqrt(
+            np.sum(
+                (np.log1p(x) - np.log1p(y)) ** 2
+            )
+        )
+    )
 
 
 def subgroup_reference_distance_colors(subgroup_results, colorscale):
     """
     For plots without sample points:
-    1) calculate subgroup means and diagonal SDs,
-    2) choose the subgroup with the largest mean Mahalanobis-style distance
-       to all other subgroups as the reference (most compositionally distinct),
-    3) calculate every subgroup's distance from that reference,
-    4) map those distances continuously to the selected Plotly colorscale.
+    1) calculate the mean A/B/C/D composition of every subgroup,
+    2) calculate all pairwise log-Euclidean distances using ln(x + 1),
+    3) choose as reference the subgroup with the largest mean distance
+       to all other subgroups (most compositionally distinct),
+    4) color every subgroup continuously by its log-Euclidean distance
+       from that reference.
     """
     means, sigmas = subgroup_statistics_from_generated(subgroup_results)
     names = [sg["name"] for sg in subgroup_results if sg["name"] in means]
@@ -410,30 +417,46 @@ def subgroup_reference_distance_colors(subgroup_results, colorscale):
             if i == j:
                 pairwise[name_i][name_j] = 0.0
             elif name_j not in pairwise[name_i]:
-                d = symmetric_diagonal_mahalanobis(
-                    means[name_i], sigmas[name_i],
-                    means[name_j], sigmas[name_j]
+                d = log_euclidean_distance(
+                    means[name_i],
+                    means[name_j]
                 )
                 pairwise[name_i][name_j] = d
                 pairwise[name_j][name_i] = d
 
     mean_distance = {
-        name: float(np.mean([d for other, d in pairwise[name].items() if other != name]))
+        name: float(
+            np.mean(
+                [d for other, d in pairwise[name].items() if other != name]
+            )
+        )
         for name in names
     }
 
-    # Most compositionally distinct subgroup = largest average distance to all others.
+    # Most compositionally distinct subgroup = largest average LED to all others.
     ref_name = max(mean_distance, key=mean_distance.get)
-    distances = {name: float(pairwise[ref_name][name]) for name in names}
+
+    # Distances of all groups from the selected reference.
+    distances = {
+        name: float(pairwise[ref_name][name])
+        for name in names
+    }
 
     max_distance = max(distances.values()) if distances else 0.0
+
     if max_distance > 0:
-        normalized = {name: d / max_distance for name, d in distances.items()}
+        normalized = {
+            name: d / max_distance
+            for name, d in distances.items()
+        }
     else:
         normalized = {name: 0.0 for name in names}
 
     color_map = {
-        name: sample_colorscale(colorscale, [normalized[name]])[0]
+        name: sample_colorscale(
+            colorscale,
+            [normalized[name]]
+        )[0]
         for name in names
     }
 
@@ -1155,7 +1178,7 @@ else:
     stats_legend_text = (
         f"<span style='font-size:{title_fs}px; font-weight:bold;'>Subgroups</span><br>"
         f"<span style='font-size:{int(22 * legend_scale)}px; font-style:italic;'>"
-        f"Reference: {ref_text} (most compositionally distinct)</span><br><br>"
+        f"Reference: {ref_text} (largest mean log-Euclidean distance)</span><br><br>"
     )
 
     for idx, sg in enumerate(
@@ -1256,7 +1279,7 @@ if show_subgroups and generated_subgroups:
             + ", ".join(sg["name"] for sg in nonempty_subgroups)
         )
 
-# Continuous subgroup-distance colorbar when no sample points are plotted.
+# Continuous log-Euclidean subgroup-distance colorbar when no sample points are plotted.
 if (not has_samples) and reference_subgroup is not None and subgroup_reference_distances:
     max_ref_distance = max(subgroup_reference_distances.values())
 
@@ -1275,7 +1298,7 @@ if (not has_samples) and reference_subgroup is not None and subgroup_reference_d
                 showscale=True,
                 colorbar=dict(
                     title=(
-                        "Mahalanobis distance<br>"
+                        "Log-Euclidean distance<br>"
                         f"from {reference_subgroup}"
                     ),
                     thickness=20
