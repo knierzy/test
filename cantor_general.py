@@ -8,7 +8,7 @@ import streamlit as st
 st.set_page_config(layout="wide", page_title="Cantor Grids")
 
 st.title("Cantor Grids – Four-Parameter Compositional Visualization")
-st.caption("Build: V33 — log-Euclidean subgroup colors without sample points")
+st.caption("Build: V34 — sorted log-Euclidean subgroup legend")
 st.caption(
     "Define four compositional parameters, create subgroup fields from parameter ranges, "
     "and optionally add sample points manually or from Excel."
@@ -1181,9 +1181,12 @@ else:
         f"Reference: {ref_text} (largest mean log-Euclidean distance)</span><br><br>"
     )
 
-    for idx, sg in enumerate(
-        [sg for sg in generated_subgroups if not sg["points"].empty]
-    ):
+    sorted_legend_subgroups = sorted(
+        [sg for sg in generated_subgroups if not sg["points"].empty],
+        key=lambda sg: subgroup_reference_distances.get(sg["name"], np.inf)
+    )
+
+    for idx, sg in enumerate(sorted_legend_subgroups):
         color = subgroup_distance_color_map.get(
             sg["name"], SUBGROUP_COLORS[idx % len(SUBGROUP_COLORS)]
         )
