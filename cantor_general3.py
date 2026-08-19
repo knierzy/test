@@ -7,10 +7,10 @@ import streamlit as st
 st.set_page_config(layout="wide", page_title="Cantor Grids")
 
 st.title("Cantor Grids – Four-Parameter Compositional Visualization")
-st.caption("Build: V23 — thinner dashed convex hull outlines")
+st.caption("Build: V31 — optional samples + persistent subgroup box + black plot labels")
 st.caption(
     "Define four compositional parameters, create subgroup fields from parameter ranges, "
-    "and upload your own four-parameter dataset."
+    "and optionally add sample points manually or from Excel."
 )
 
 # ============================================================
@@ -49,16 +49,9 @@ X_LABELS = {
 }
 
 SUBGROUP_COLORS = [
-    "rgba(31,119,180,0.85)",
-    "rgba(255,127,14,0.85)",
-    "rgba(44,160,44,0.85)",
-    "rgba(214,39,40,0.85)",
-    "rgba(148,103,189,0.85)",
-    "rgba(140,86,75,0.85)",
-    "rgba(227,119,194,0.85)",
-    "rgba(127,127,127,0.85)",
-    "rgba(188,189,34,0.85)",
-    "rgba(23,190,207,0.85)"
+    "#4E79A7", "#F28E2B", "#E15759", "#76B7B2", "#59A14F",
+    "#EDC948", "#B07AA1", "#FF9DA7", "#9C755F", "#BAB0AC",
+    "#1F77B4", "#FF7F0E", "#2CA02C", "#D62728", "#9467BD",
 ]
 
 
@@ -211,12 +204,41 @@ def convex_hull_2d(points):
     return lower[:-1] + upper[:-1]
 
 
-def rgba_with_alpha(rgba, alpha):
-    parts = rgba.replace("rgba(", "").replace(")", "").split(",")
-    return f"rgba({parts[0]},{parts[1]},{parts[2]},{alpha})"
+def rgba_with_alpha(color, alpha):
+    """
+    Return an rgba(...) string with the requested alpha.
+
+    Supports both:
+    - rgba(r,g,b,a)
+    - rgb(r,g,b)
+    - hexadecimal colors such as #4E79A7
+    """
+    color = str(color).strip()
+
+    if color.startswith("#"):
+        hex_color = color.lstrip("#")
+        if len(hex_color) == 3:
+            hex_color = "".join(ch * 2 for ch in hex_color)
+        if len(hex_color) != 6:
+            raise ValueError(f"Unsupported hex color: {color}")
+
+        r = int(hex_color[0:2], 16)
+        g = int(hex_color[2:4], 16)
+        b = int(hex_color[4:6], 16)
+        return f"rgba({r},{g},{b},{alpha})"
+
+    if color.startswith("rgba("):
+        parts = color.replace("rgba(", "").replace(")", "").split(",")
+        return f"rgba({parts[0].strip()},{parts[1].strip()},{parts[2].strip()},{alpha})"
+
+    if color.startswith("rgb("):
+        parts = color.replace("rgb(", "").replace(")", "").split(",")
+        return f"rgba({parts[0].strip()},{parts[1].strip()},{parts[2].strip()},{alpha})"
+
+    raise ValueError(f"Unsupported color format: {color}")
 
 
-def add_subgroup_fields(fig, subgroup_results):
+def add_subgroup_fields(fig, subgroup_results, hull_width=1.0):
     """
     Draw subgroup fields as colored rectangular outlines only.
 
@@ -289,7 +311,7 @@ def add_subgroup_fields(fig, subgroup_results):
                     x=hull_x,
                     y=hull_y,
                     mode="lines",
-                    line=dict(color="black", width=1, dash="dash"),
+                    line=dict(color=color, width=hull_width, dash="dash"),
                     fill=None,
                     hoverinfo="skip",
                     legendgroup=sg["name"],
@@ -302,7 +324,7 @@ def add_subgroup_fields(fig, subgroup_results):
                     x=[hull[0][0], hull[1][0]],
                     y=[hull[0][1], hull[1][1]],
                     mode="lines",
-                    line=dict(color="black", width=0.6, dash="dash"),
+                    line=dict(color=color, width=hull_width, dash="dash"),
                     hoverinfo="skip",
                     legendgroup=sg["name"],
                     showlegend=False
@@ -731,13 +753,82 @@ else:
     st.info("Define at least one valid subgroup field above.")
 
 # ============================================================
-# 4. Upload
+# 4. Optional sample points
 # ============================================================
 
-st.header("4. Upload dataset")
+st.header("4. Optional sample points")
 
-st.markdown(
-    f"""
+sample_mode = st.radio(
+    "Sample point input",
+    ["No sample points", "Manual input", "Upload Excel file"],
+    horizontal=True,
+    help=(
+        "Sample points are optional. Choose 'No sample points' to display only "
+        "the Cantor grid and subgroup fields."
+    )
+)
+
+df = None
+
+if sample_mode == "Manual input":
+    st.caption(
+        "Enter one four-parameter composition. Values are automatically normalized "
+        "to 100% using the Largest Remainder Method."
+    )
+
+    m1, m2, m3, m4, m5 = st.columns([1, 1, 1, 1, 2])
+
+    with m1:
+        manual_a = st.number_input(
+            labels[0], min_value=0.0, value=25.0, step=1.0, key="manual_point_a"
+        )
+    with m2:
+        manual_b = st.number_input(
+            labels[1], min_value=0.0, value=25.0, step=1.0, key="manual_point_b"
+        )
+    with m3:
+        manual_c = st.number_input(
+            labels[2], min_value=0.0, value=25.0, step=1.0, key="manual_point_c"
+        )
+    with m4:
+        manual_d = st.number_input(
+            labels[3], min_value=0.0, value=25.0, step=1.0, key="manual_point_d"
+        )
+    with m5:
+        manual_locality = st.text_input(
+            "Locality / sample name", "Manual sample", key="manual_point_locality"
+        )
+
+    try:
+        manual_norm = normalize_to_100_lrm(
+            [manual_a, manual_b, manual_c, manual_d]
+        )
+        mx, my = calculate_final_position(*manual_norm)
+
+        df = pd.DataFrame([{
+            "A": int(manual_norm[0]),
+            "B": int(manual_norm[1]),
+            "C": int(manual_norm[2]),
+            "D": int(manual_norm[3]),
+            "Locality": manual_locality.strip() or "Manual sample",
+            "x": mx,
+            "y": my,
+        }])
+
+        st.caption(
+            "Normalized composition: "
+            f"{labels[0]}={manual_norm[0]}%, "
+            f"{labels[1]}={manual_norm[1]}%, "
+            f"{labels[2]}={manual_norm[2]}%, "
+            f"{labels[3]}={manual_norm[3]}%."
+        )
+    except Exception as exc:
+        st.error(str(exc))
+        df = None
+
+elif sample_mode == "Upload Excel file":
+    st.markdown(
+        f"""
 Excel columns can be either:
 
 **A, B, C, D, Locality**
@@ -746,10 +837,20 @@ or:
 
 **{labels[0]}, {labels[1]}, {labels[2]}, {labels[3]}, Locality**
 """
-)
+    )
 
-uploaded_file = st.file_uploader("Upload Excel file (.xlsx)", type=["xlsx"])
+    uploaded_file = st.file_uploader(
+        "Upload sample dataset (.xlsx)",
+        type=["xlsx"],
+        key="sample_dataset_uploader"
+    )
 
+    if uploaded_file is not None:
+        try:
+            df = read_uploaded_dataset(uploaded_file, labels)
+        except Exception as exc:
+            st.error(str(exc))
+            df = None
 
 # ============================================================
 # 5. Plot settings
@@ -757,13 +858,22 @@ uploaded_file = st.file_uploader("Upload Excel file (.xlsx)", type=["xlsx"])
 
 st.header("5. Plot settings")
 
-pc1, pc2 = st.columns(2)
+pc1, pc2, pc3 = st.columns(3)
 with pc1:
     point_size = st.slider("Sample point size", 3, 40, 7, 1)
 with pc2:
     colorscale = st.selectbox(
         "Sample color scale",
         ["Plasma", "Viridis", "Turbo", "Inferno", "Cividis", "RdYlBu"]
+    )
+with pc3:
+    subgroup_hull_width = st.slider(
+        "Subgroup convex hull line width",
+        min_value=0.2,
+        max_value=5.0,
+        value=1.0,
+        step=0.1,
+        help="Controls the thickness of the dashed outer convex-hull line around each subgroup."
     )
 
 legend_scale = st.slider(
@@ -776,6 +886,11 @@ legend_scale = st.slider(
 )
 
 show_subgroups = st.checkbox("Show subgroup fields", value=True)
+show_subgroup_labels = st.checkbox(
+    "Show subgroup labels (first two letters)",
+    value=False,
+    help="Places the first two letters of each subgroup name at the center of its generated field."
+)
 show_gray_grid = st.checkbox("Show gray Cantor grid", value=True)
 
 
@@ -783,36 +898,38 @@ show_gray_grid = st.checkbox("Show gray Cantor grid", value=True)
 # 6. Plot
 # ============================================================
 
-if uploaded_file is not None:
-    try:
-        df = read_uploaded_dataset(uploaded_file, labels)
-    except Exception as exc:
-        st.error(str(exc))
-        st.stop()
+# Sample-based classification is only calculated when sample points are present.
+has_samples = df is not None and not df.empty
 
-    # Distance-based classification, analogous to the garnet application
+if has_samples:
     df, subgroup_means, subgroup_sigmas = classify_diagonal_mahalanobis(
         df,
         generated_subgroups
     )
 
-    # Keep direct range-membership information as an additional diagnostic.
     df["Inside_Range_Field"] = df.apply(
         lambda r: classify_by_ranges(r, subgroup_defs),
         axis=1
     )
 
-    # User-facing classification label
     df["Subgroup"] = df["Nearest_Subfield"]
-
     summary_df = classification_summary(df, generated_subgroups)
 
-    # First locality from the uploaded Excel file (as requested)
     if "Locality" in df.columns and len(df) > 0:
         first_locality = str(df["Locality"].iloc[0])
     else:
         first_locality = "not specified"
+else:
+    subgroup_means, subgroup_sigmas = subgroup_statistics_from_generated(
+        generated_subgroups
+    )
+    summary_df = pd.DataFrame(columns=["Subgroup", "Points", "Percent"])
+    first_locality = "no sample points"
 
+
+PLOT_HEIGHT = 950
+
+if has_samples:
     # Dynamic statistics-box sizing.
     # Height grows with subgroup count, while the user can scale the whole box.
     n_subgroups = max(len(summary_df), 1)
@@ -827,7 +944,6 @@ if uploaded_file is not None:
     # Calculate the required height in PIXELS from the actual font sizes and
     # convert it to Plotly paper coordinates. This keeps the rectangle around
     # the complete legend even when the plot height or legend scale changes.
-    PLOT_HEIGHT = 950
 
     title_line_px = title_fs * 1.35
     method_line_px = method_fs * 1.45
@@ -915,46 +1031,134 @@ if uploaded_file is not None:
             f'</span><br>'
         )
 
-    fig = go.Figure()
+else:
+    # Keep a subgroup legend box visible even when no sample points are plotted.
+    n_subgroups = max(len([sg for sg in generated_subgroups if not sg["points"].empty]), 1)
 
-    # Background first
-    if show_gray_grid:
-        add_gray_cantor_grid(fig)
+    title_fs = int(40 * legend_scale)
+    square_fs = int(42 * legend_scale)
+    group_fs = int(31 * legend_scale)
 
-    # Reference grid lines
-    for y in range(10, 100, 10):
-        fig.add_shape(
-            type="line",
-            x0=0,
-            x1=RECTANGLES[-1][0] + RECTANGLES[-1][1] + 10,
-            y0=y,
-            y1=y,
-            line=dict(color="rgba(80,80,80,0.45)", width=0.8, dash="dash"),
-            layer="above"
+    subgroup_line_px = max(square_fs * 1.10, group_fs * 1.40)
+    padding_top_px = 18 * legend_scale
+    padding_bottom_px = 24 * legend_scale
+    gap_before_groups_px = 18 * legend_scale
+
+    legend_height_px = (
+        padding_top_px
+        + title_fs * 1.35
+        + gap_before_groups_px
+        + n_subgroups * subgroup_line_px
+        + padding_bottom_px
+    )
+
+    legend_height = min(0.94, max(0.18, legend_height_px / PLOT_HEIGHT))
+    legend_y1 = 0.98
+    legend_y0 = max(0.02, legend_y1 - legend_height)
+
+    nonempty_names = [
+        sg["name"] for sg in generated_subgroups if not sg["points"].empty
+    ]
+    longest_entry_chars = max(
+        [len("Subgroups")] + [len(name) for name in nonempty_names]
+    )
+
+    legend_width = min(
+        0.62,
+        max(0.28, (0.10 + longest_entry_chars * 0.0080) * legend_scale)
+    )
+    legend_x0 = 0.015
+    legend_x1 = min(0.92, legend_x0 + legend_width)
+
+    stats_legend_text = (
+        f"<span style='font-size:{title_fs}px; font-weight:bold;'>Subgroups</span><br><br>"
+    )
+
+    for idx, sg in enumerate(
+        [sg for sg in generated_subgroups if not sg["points"].empty]
+    ):
+        color = SUBGROUP_COLORS[idx % len(SUBGROUP_COLORS)]
+        stats_legend_text += (
+            f'<span style="color:{color}; font-size:{square_fs}px; vertical-align:middle;">■</span> '
+            f'<span style="font-size:{group_fs}px; font-weight:bold; vertical-align:middle;">'
+            f'{sg["name"]}</span><br>'
         )
+fig = go.Figure()
 
-    for x in [442, 909.5, 1352, 1769.5, 2162, 2529.5, 2872, 3189.5, 3482,
-              3749.5, 3992, 4209.5, 4402, 4569.5, 4712, 4850.5, 4922, 4995.5, 5037.5]:
-        fig.add_shape(
-            type="line",
-            x0=x, x1=x, y0=0, y1=100,
-            line=dict(color="rgba(80,80,80,0.55)", width=0.8, dash="dash"),
-            layer="above"
-        )
+# Background first
+if show_gray_grid:
+    add_gray_cantor_grid(fig)
 
-    # User-defined subgroup fields over the gray grid
-    if show_subgroups and generated_subgroups:
-        nonempty_subgroups = [
-            sg for sg in generated_subgroups if not sg["points"].empty
-        ]
-        add_subgroup_fields(fig, nonempty_subgroups)
+# Reference grid lines
+for y in range(10, 100, 10):
+    fig.add_shape(
+        type="line",
+        x0=0,
+        x1=RECTANGLES[-1][0] + RECTANGLES[-1][1] + 10,
+        y0=y,
+        y1=y,
+        line=dict(color="rgba(80,80,80,0.45)", width=0.8, dash="dash"),
+        layer="above"
+    )
 
-        if nonempty_subgroups:
-            st.caption(
-                "Subgroup fields drawn: "
-                + ", ".join(sg["name"] for sg in nonempty_subgroups)
+for x in [442, 909.5, 1352, 1769.5, 2162, 2529.5, 2872, 3189.5, 3482,
+          3749.5, 3992, 4209.5, 4402, 4569.5, 4712, 4850.5, 4922, 4995.5, 5037.5]:
+    fig.add_shape(
+        type="line",
+        x0=x, x1=x, y0=0, y1=100,
+        line=dict(color="rgba(80,80,80,0.55)", width=0.8, dash="dash"),
+        layer="above"
+    )
+
+# User-defined subgroup fields over the gray grid
+if show_subgroups and generated_subgroups:
+    nonempty_subgroups = [
+        sg for sg in generated_subgroups if not sg["points"].empty
+    ]
+    add_subgroup_fields(fig, nonempty_subgroups, hull_width=subgroup_hull_width)
+
+    if show_subgroup_labels:
+        for i, sg in enumerate(nonempty_subgroups):
+            pts = sg["points"]
+            if pts.empty:
+                continue
+
+            # Use the centroid of all valid generated compositions as label position.
+            label_x = float(pts["x"].mean())
+            label_y = float(pts["y"].mean())
+
+            # First two alphabetic characters of the subgroup name, upper case.
+            letters = "".join(ch for ch in str(sg["name"]) if ch.isalpha())
+            short_label = (letters[:2] if len(letters) >= 2 else letters).upper()
+
+            # Use a text trace instead of a layout annotation.
+            # The statistics box later replaces layout.annotations, which
+            # previously removed these subgroup labels.
+            fig.add_trace(
+                go.Scatter(
+                    x=[label_x],
+                    y=[label_y],
+                    mode="text",
+                    text=[f"<b>{short_label}</b>"],
+                    textposition="middle center",
+                    textfont=dict(
+                        size=20,
+                        color="black",
+                        family="Arial Black"
+                    ),
+                    hoverinfo="skip",
+                    showlegend=False,
+                    legendgroup=sg["name"]
+                )
             )
 
+    if nonempty_subgroups:
+        st.caption(
+            "Subgroup fields drawn: "
+            + ", ".join(sg["name"] for sg in nonempty_subgroups)
+        )
+
+if has_samples:
     # Uploaded samples
     ratio = df["A"] / (df["A"] + df["B"]).replace(0, np.nan)
     ratio = ratio.fillna(0)
@@ -1076,123 +1280,127 @@ if uploaded_file is not None:
         )
     )
 
-    tickvals = list(X_LABELS.keys())
-    ticktext = [
-        f"{ab}<br>CD{str(100 - int(ab[2:])).zfill(2)}"
-        for ab in X_LABELS.values()
-    ]
 
-    # Layout aligned more closely with the original garnet application.
-    # In particular, do not draw a heavy bottom x-axis line; instead use
-    # explicit top and left frame lines, as in the garnet plot.
-    fig.update_layout(
-        plot_bgcolor="white",
-        paper_bgcolor="white",
-        autosize=False,
-        width=2260,
-        height=PLOT_HEIGHT,
-        xaxis=dict(
-            title=dict(
-                text=f"Sum of {labels[0]} (%) + {labels[1]} (%)",
-                font=dict(size=35, color="black", family="Arial Black")
-            ),
-            range=[-30, RECTANGLES[-1][0] + RECTANGLES[-1][1] + 20],
-            tickvals=tickvals,
-            ticktext=ticktext,
-            tickangle=0,
-            tickfont=dict(size=16, color="black"),
-            automargin=True,
-            showgrid=False,
-            zeroline=False,
-            showline=False,
-            ticks=""
+tickvals = list(X_LABELS.keys())
+ticktext = [
+    f"{ab}<br>CD{str(100 - int(ab[2:])).zfill(2)}"
+    for ab in X_LABELS.values()
+]
+
+# Layout aligned more closely with the original garnet application.
+# In particular, do not draw a heavy bottom x-axis line; instead use
+# explicit top and left frame lines, as in the garnet plot.
+fig.update_layout(
+    plot_bgcolor="white",
+    paper_bgcolor="white",
+    autosize=False,
+    width=2260,
+    height=PLOT_HEIGHT,
+    xaxis=dict(
+        title=dict(
+            text=f"Sum of {labels[0]} (%) + {labels[1]} (%)",
+            font=dict(size=35, color="black", family="Arial Black")
         ),
-        yaxis=dict(
-            title=dict(
-                text=f"{labels[2]} (%) /// {labels[3]} (%) = grid height − {labels[2]} (%)",
-                font=dict(size=28, color="black", family="Arial Black")
-            ),
-            range=[0, 100],
-            constrain="domain",
-            dtick=10,
-            tickfont=dict(size=16, color="black"),
-            automargin=True,
-            showgrid=False,
-            zeroline=False,
-            showline=False,
-            ticks=""
+        range=[-30, RECTANGLES[-1][0] + RECTANGLES[-1][1] + 20],
+        tickvals=tickvals,
+        ticktext=ticktext,
+        tickangle=0,
+        tickfont=dict(size=16, color="black"),
+        automargin=True,
+        showgrid=False,
+        zeroline=False,
+        showline=False,
+        ticks=""
+    ),
+    yaxis=dict(
+        title=dict(
+            text=f"{labels[2]} (%) /// {labels[3]} (%) = grid height − {labels[2]} (%)",
+            font=dict(size=28, color="black", family="Arial Black")
         ),
-        showlegend=False,
-        margin=dict(l=0, r=5, t=20, b=5),
-        hoverlabel=dict(font_size=24)
-    )
+        range=[0, 100],
+        constrain="domain",
+        dtick=10,
+        tickfont=dict(size=16, color="black"),
+        automargin=True,
+        showgrid=False,
+        zeroline=False,
+        showline=False,
+        ticks=""
+    ),
+    showlegend=False,
+    margin=dict(l=0, r=5, t=20, b=5),
+    hoverlabel=dict(font_size=24)
+)
 
-    # Garnet-style plot frame: left vertical border and thin top border.
-    x_min_frame = -30
-    x_max_frame = RECTANGLES[-1][0] + RECTANGLES[-1][1]
+# Garnet-style plot frame: left vertical border and thin top border.
+x_min_frame = -30
+x_max_frame = RECTANGLES[-1][0] + RECTANGLES[-1][1]
 
-    fig.add_shape(
-        type="line",
-        x0=x_min_frame,
-        x1=x_min_frame,
-        y0=0,
-        y1=100,
-        line=dict(color="black", width=3),
-        layer="above"
-    )
+fig.add_shape(
+    type="line",
+    x0=x_min_frame,
+    x1=x_min_frame,
+    y0=0,
+    y1=100,
+    line=dict(color="black", width=3),
+    layer="above"
+)
 
-    fig.add_shape(
-        type="line",
-        x0=x_min_frame,
-        x1=x_max_frame,
-        y0=100,
-        y1=100,
-        line=dict(color="black", width=2),
-        layer="above"
-    )
+fig.add_shape(
+    type="line",
+    x0=x_min_frame,
+    x1=x_max_frame,
+    y0=100,
+    y1=100,
+    line=dict(color="black", width=2),
+    layer="above"
+)
 
-    # ========================================================
-    # IN-PLOT STATISTICS BOX — same construction as garnet app
-    # ========================================================
+# ========================================================
+# IN-PLOT STATISTICS / SUBGROUP BOX
+# ========================================================
 
-    # White rectangle behind the statistics text
-    fig.add_shape(
-        type="rect",
-        xref="paper",
-        yref="paper",
-        x0=legend_x0,
-        x1=legend_x1,
-        y0=legend_y0,
-        y1=legend_y1,
-        fillcolor="white",
-        line=dict(color="black", width=3),
-        layer="above"
-    )
+# White rectangle behind the statistics text
+fig.add_shape(
+    type="rect",
+    xref="paper",
+    yref="paper",
+    x0=legend_x0,
+    x1=legend_x1,
+    y0=legend_y0,
+    y1=legend_y1,
+    fillcolor="white",
+    line=dict(color="black", width=3),
+    layer="above"
+)
 
-    # IMPORTANT: use update_layout(annotations=[...]) exactly as in the garnet script
-    fig.update_layout(
-        annotations=[
-            dict(
-                x=legend_x0,
-                y=legend_y1,
-                xref="paper",
-                yref="paper",
-                text=stats_legend_text,
-                showarrow=False,
-                font=dict(size=max(16, int(28 * legend_scale)), color="black"),
-                bgcolor="rgba(0,0,0,0)",
-                borderwidth=0,
-                xanchor="left",
-                yanchor="top",
-                align="left",
-                textangle=0
-            )
-        ],
-        showlegend=False
-    )
+# IMPORTANT: use update_layout(annotations=[...]) exactly as in the garnet script
+fig.update_layout(
+    annotations=[
+        dict(
+            x=legend_x0,
+            y=legend_y1,
+            xref="paper",
+            yref="paper",
+            text=stats_legend_text,
+            showarrow=False,
+            font=dict(size=max(16, int(28 * legend_scale)), color="black"),
+            bgcolor="rgba(0,0,0,0)",
+            borderwidth=0,
+            xanchor="left",
+            yanchor="top",
+            align="left",
+            textangle=0
+        )
+    ],
+    showlegend=False
+)
 
-    st.plotly_chart(fig, use_container_width=True)
 
+
+st.plotly_chart(fig, use_container_width=True)
+
+if has_samples:
     # ========================================================
     # Statistical classification output
     # ========================================================
@@ -1246,4 +1454,6 @@ if uploaded_file is not None:
     st.dataframe(display_df, use_container_width=True)
 
 else:
-    st.info("Upload an Excel file to display samples. The subgroup fields can be generated beforehand.")
+    st.caption(
+        "No sample points selected. The plot shows the Cantor grid and subgroup fields only."
+    )
