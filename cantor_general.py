@@ -7,7 +7,7 @@ import streamlit as st
 st.set_page_config(layout="wide", page_title="Cantor Grids")
 
 st.title("Cantor Grids – Four-Parameter Compositional Visualization")
-st.caption("Build: V26 — 15 subgroup colors + robust alpha conversion")
+st.caption("Build: V27 — optional two-letter subgroup labels")
 st.caption(
     "Define four compositional parameters, create subgroup fields from parameter ranges, "
     "and upload your own four-parameter dataset."
@@ -807,6 +807,11 @@ legend_scale = st.slider(
 )
 
 show_subgroups = st.checkbox("Show subgroup fields", value=True)
+show_subgroup_labels = st.checkbox(
+    "Show subgroup labels (first two letters)",
+    value=False,
+    help="Places the first two letters of each subgroup name at the center of its generated field."
+)
 show_gray_grid = st.checkbox("Show gray Cantor grid", value=True)
 
 
@@ -979,6 +984,37 @@ if uploaded_file is not None:
             sg for sg in generated_subgroups if not sg["points"].empty
         ]
         add_subgroup_fields(fig, nonempty_subgroups, hull_width=subgroup_hull_width)
+
+        if show_subgroup_labels:
+            for i, sg in enumerate(nonempty_subgroups):
+                pts = sg["points"]
+                if pts.empty:
+                    continue
+
+                # Use the centroid of all valid generated compositions as label position.
+                label_x = float(pts["x"].mean())
+                label_y = float(pts["y"].mean())
+
+                # First two alphabetic characters of the subgroup name, upper case.
+                letters = "".join(ch for ch in str(sg["name"]) if ch.isalpha())
+                short_label = (letters[:2] if len(letters) >= 2 else letters).upper()
+
+                fig.add_annotation(
+                    x=label_x,
+                    y=label_y,
+                    text=f"<b>{short_label}</b>",
+                    showarrow=False,
+                    font=dict(
+                        size=20,
+                        color=SUBGROUP_COLORS[i % len(SUBGROUP_COLORS)],
+                        family="Arial Black"
+                    ),
+                    bgcolor="rgba(255,255,255,0.72)",
+                    bordercolor=SUBGROUP_COLORS[i % len(SUBGROUP_COLORS)],
+                    borderwidth=1,
+                    borderpad=2,
+                    opacity=0.95
+                )
 
         if nonempty_subgroups:
             st.caption(
