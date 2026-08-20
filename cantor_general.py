@@ -469,11 +469,11 @@ def calculate_subgroup_field_overlaps(subgroup_results):
 def add_overlap_hatching(
     fig,
     subgroup_results,
-    hatch_spacing=0.85,
-    hatch_alpha=0.50,
-    hatch_width=1.25,
-    outline_alpha=0.60,
-    outline_width=1.0
+    hatch_spacing=0.65,
+    hatch_alpha=0.70,
+    hatch_width=1.60,
+    outline_alpha=0.75,
+    outline_width=1.20
 ):
     """
     Highlight actual pairwise overlap areas with a clearly visible but still
@@ -1796,11 +1796,11 @@ if show_subgroups and generated_subgroups:
         add_overlap_hatching(
             fig,
             nonempty_subgroups,
-            hatch_spacing=0.85,
-            hatch_alpha=0.50,
-            hatch_width=1.25,
-            outline_alpha=0.60,
-            outline_width=1.0
+            hatch_spacing=0.65,
+            hatch_alpha=0.70,
+            hatch_width=1.60,
+            outline_alpha=0.75,
+            outline_width=1.20
         )
 
 # Continuous log-Euclidean subgroup-distance colorbar when no sample points are plotted.
