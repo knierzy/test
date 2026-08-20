@@ -239,7 +239,7 @@ def rgba_with_alpha(color, alpha):
     raise ValueError(f"Unsupported color format: {color}")
 
 
-def add_subgroup_fields(fig, subgroup_results, hull_width=1.0, color_map=None):
+def add_subgroup_fields(fig, subgroup_results, hull_width=1.0, subfield_width=1.0, color_map=None):
     """
     Draw subgroup fields as colored rectangular outlines only.
 
@@ -253,7 +253,7 @@ def add_subgroup_fields(fig, subgroup_results, hull_width=1.0, color_map=None):
             continue
 
         color = (color_map or {}).get(sg["name"], SUBGROUP_COLORS[idx % len(SUBGROUP_COLORS)])
-        fill = rgba_with_alpha(color, 0.40)
+        fill = rgba_with_alpha(color, 0.25)
         first_trace = True
 
         for ab, group in pts.groupby("AB"):
@@ -282,7 +282,7 @@ def add_subgroup_fields(fig, subgroup_results, hull_width=1.0, color_map=None):
                     x=[x_min, x_min, x_max, x_max, x_min],
                     y=[y_min, y_max, y_max, y_min, y_min],
                     mode="lines",
-                    line=dict(color=color, width=1.5),
+                    line=dict(color=color, width=subfield_width),
                     fill="toself",
                     fillcolor=fill,
                     name=sg["name"],
@@ -789,7 +789,7 @@ The letters A–D refer to the parameter names defined above.
                     ]
 
                     st.success(f"{len(subgroup_defs)} subgroup(s) loaded.")
-                    st.dataframe(preview, use_container_width=True)
+                    st.dataframe(preview, use_container_width=False)
 
                     for row_no, name, sum_min, sum_max, range_error in invalid_rows:
                         if range_error:
@@ -835,7 +835,7 @@ if generated_subgroups:
         for sg in generated_subgroups
     ])
 
-    st.dataframe(summary, use_container_width=True)
+    st.dataframe(summary, use_container_width=False)
 
     empty = [sg["name"] for sg in generated_subgroups if sg["points"].empty]
 
@@ -953,7 +953,7 @@ or:
 
 st.header("5. Plot settings")
 
-pc1, pc2, pc3 = st.columns(3)
+pc1, pc2, pc3, pc4 = st.columns(4)
 with pc1:
     point_size = st.slider("Sample point size", 3, 40, 7, 1)
 with pc2:
@@ -969,6 +969,15 @@ with pc3:
         value=1.0,
         step=0.1,
         help="Controls the thickness of the dashed outer convex-hull line around each subgroup."
+    )
+with pc4:
+    subgroup_subfield_width = st.slider(
+        "Subfield boundary line width",
+        min_value=0.2,
+        max_value=5.0,
+        value=1.0,
+        step=0.1,
+        help="Controls the thickness of the black boundary line around each individual scattered subfield."
     )
 
 legend_scale = st.slider(
@@ -1238,6 +1247,7 @@ if show_subgroups and generated_subgroups:
         fig,
         nonempty_subgroups,
         hull_width=subgroup_hull_width,
+        subfield_width=subgroup_subfield_width,
         color_map=active_subgroup_color_map
     )
 
@@ -1448,7 +1458,7 @@ fig.update_layout(
     plot_bgcolor="white",
     paper_bgcolor="white",
     autosize=False,
-    width=2260,
+    width=1500,
     height=PLOT_HEIGHT,
     xaxis=dict(
         title=dict(
@@ -1552,7 +1562,7 @@ fig.update_layout(
 
 
 
-st.plotly_chart(fig, use_container_width=True)
+st.plotly_chart(fig, use_container_width=False)
 
 if has_samples:
     # ========================================================
@@ -1568,7 +1578,7 @@ if has_samples:
     )
 
     if not summary_df.empty:
-        st.dataframe(summary_df, use_container_width=True)
+        st.dataframe(summary_df, use_container_width=False)
 
     if subgroup_means:
         stats_rows = []
@@ -1605,7 +1615,7 @@ if has_samples:
             "D": labels[3]
         }
     )
-    st.dataframe(display_df, use_container_width=True)
+    st.dataframe(display_df, use_container_width=False)
 
 else:
     st.caption(
