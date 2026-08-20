@@ -1458,7 +1458,7 @@ fig.update_layout(
     plot_bgcolor="white",
     paper_bgcolor="white",
     autosize=False,
-    width=2260,
+    width=1500,
     height=PLOT_HEIGHT,
     xaxis=dict(
         title=dict(
