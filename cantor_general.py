@@ -8,7 +8,7 @@ import streamlit as st
 st.set_page_config(layout="wide", page_title="Cantor Grids")
 
 st.title("Cantor Grids – Four-Parameter Compositional Visualization")
-st.caption("Build: V35 — garnet-style display and export")
+st.caption("Build: V35 — matched Explorer/export dimensions")
 st.caption(
     "Define four compositional parameters, create subgroup fields from parameter ranges, "
     "and optionally add sample points manually or from Excel."
@@ -1040,8 +1040,8 @@ else:
     first_locality = "no sample points"
 
 
-PLOT_WIDTH = 2260
-PLOT_HEIGHT = 750
+PLOT_WIDTH = 1700
+PLOT_HEIGHT = 950
 
 if has_samples:
     # Dynamic statistics-box sizing.
