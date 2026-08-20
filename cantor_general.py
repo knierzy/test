@@ -282,7 +282,7 @@ def add_subgroup_fields(fig, subgroup_results, hull_width=1.0, subfield_width=1.
                     x=[x_min, x_min, x_max, x_max, x_min],
                     y=[y_min, y_max, y_max, y_min, y_min],
                     mode="lines",
-                    line=dict(color="black", width=subfield_width),
+                    line=dict(color=color, width=subfield_width),
                     fill="toself",
                     fillcolor=fill,
                     name=sg["name"],
