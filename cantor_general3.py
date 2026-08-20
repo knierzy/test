@@ -459,6 +459,54 @@ def calculate_subgroup_field_overlaps(subgroup_results):
     )
 
 
+def dynamic_axis_font_size(text, base_size, min_size):
+    """
+    Scale an axis-title font according to the visible title length.
+    The title always remains on a single line; only the font size changes.
+    """
+    n = len(str(text))
+
+    if n <= 30:
+        return base_size
+    elif n <= 45:
+        return max(min_size, int(base_size * 0.88))
+    elif n <= 60:
+        return max(min_size, int(base_size * 0.75))
+    elif n <= 80:
+        return max(min_size, int(base_size * 0.62))
+    elif n <= 100:
+        return max(min_size, int(base_size * 0.52))
+    else:
+        return min_size
+
+
+def build_dynamic_axis_titles(labels):
+    """
+    Build x/y titles from the current parameter names.
+
+    Both titles remain on a single line. Long parameter names are handled
+    automatically by reducing the corresponding axis-title font size.
+    """
+    x_title = f"Sum of {labels[0]} (%) + {labels[1]} (%)"
+    y_title = (
+        f"{labels[2]} (%) /// {labels[3]} (%) = "
+        f"grid height − {labels[2]} (%)"
+    )
+
+    x_size = dynamic_axis_font_size(
+        x_title,
+        base_size=35,
+        min_size=14
+    )
+    y_size = dynamic_axis_font_size(
+        y_title,
+        base_size=28,
+        min_size=14
+    )
+
+    return x_title, y_title, x_size, y_size
+
+
 def subgroup_statistics_from_generated(subgroup_results):
     """
     Calculate mean compositions and standard deviations for each subgroup
@@ -514,13 +562,14 @@ def log_euclidean_distance(mu_i, mu_j):
     )
 
 
-def subgroup_reference_distance_colors(subgroup_results, colorscale):
+def subgroup_reference_distance_colors(subgroup_results, colorscale, reference_name=None):
     """
     For plots without sample points:
     1) calculate the mean A/B/C/D composition of every subgroup,
     2) calculate all pairwise log-Euclidean distances using ln(x + 1),
-    3) choose as reference the subgroup with the largest mean distance
-       to all other subgroups (most compositionally distinct),
+    3) use either a user-selected reference subgroup or, by default,
+       automatically choose the subgroup with the largest mean distance
+       to all other subgroups,
     4) color every subgroup continuously by its log-Euclidean distance
        from that reference.
     """
@@ -559,10 +608,15 @@ def subgroup_reference_distance_colors(subgroup_results, colorscale):
         for name in names
     }
 
-    # Most compositionally distinct subgroup = largest average LED to all others.
-    ref_name = max(mean_distance, key=mean_distance.get)
+    # Default: most compositionally distinct subgroup.
+    automatic_ref_name = max(mean_distance, key=mean_distance.get)
 
-    # Distances of all groups from the selected reference.
+    # User selection overrides the automatic reference when valid.
+    if reference_name in names:
+        ref_name = reference_name
+    else:
+        ref_name = automatic_ref_name
+
     distances = {
         name: float(pairwise[ref_name][name])
         for name in names
@@ -1123,6 +1177,31 @@ show_subgroup_labels = st.checkbox(
 )
 show_gray_grid = st.checkbox("Show gray Cantor grid", value=True)
 
+# Reference subgroup for log-Euclidean distances.
+# The default keeps the original automatic behavior.
+available_reference_groups = [
+    sg["name"] for sg in generated_subgroups if not sg["points"].empty
+]
+
+reference_mode_options = ["Automatic (largest mean distance)"] + available_reference_groups
+
+selected_reference_option = st.selectbox(
+    "Log-Euclidean reference subgroup",
+    reference_mode_options,
+    index=0,
+    help=(
+        "Automatic selects the subgroup with the largest mean log-Euclidean "
+        "distance to all other subgroups. Alternatively, choose any subgroup "
+        "as the reference for the displayed distances and color scale."
+    )
+)
+
+selected_reference_name = (
+    None
+    if selected_reference_option == "Automatic (largest mean distance)"
+    else selected_reference_option
+)
+
 
 # ============================================================
 # 6. Plot
@@ -1160,10 +1239,16 @@ else:
         subgroup_distance_color_map,
         subgroup_means,
         subgroup_sigmas,
-    ) = subgroup_reference_distance_colors(generated_subgroups, colorscale)
+    ) = subgroup_reference_distance_colors(
+        generated_subgroups,
+        colorscale,
+        reference_name=selected_reference_name
+    )
 
     summary_df = pd.DataFrame(columns=["Subgroup", "Points", "Percent"])
     first_locality = "no sample points"
+
+reference_is_automatic = selected_reference_name is None
 
 
 PLOT_WIDTH = 1700
@@ -1381,8 +1466,11 @@ else:
 
     longest_entry_chars = max(
         [
-            len("Subgroups"),
-            len(f"Reference: {reference_subgroup} (most compositionally distinct)"),
+            len("Log-Euclidean distance"),
+            len(
+                f"Reference: {reference_subgroup} "
+                + ("(automatic: largest mean distance)" if reference_is_automatic else "(user selected)")
+            ),
             len("Subgroup field overlap (shared area as % of each field)")
         ]
         + [len(name) + 9 for name in nonempty_names]
@@ -1397,10 +1485,15 @@ else:
     legend_x1 = min(0.92, legend_x0 + legend_width)
 
     ref_text = reference_subgroup if reference_subgroup is not None else "not available"
+    reference_note = (
+        "automatic: largest mean distance"
+        if reference_is_automatic
+        else "user selected"
+    )
     stats_legend_text = (
-        f"<span style='font-size:{title_fs}px; font-weight:bold;'>Subgroups</span><br>"
+        f"<span style='font-size:{title_fs}px; font-weight:bold;'>Log-Euclidean distance</span><br>"
         f"<span style='font-size:{int(22 * legend_scale)}px; font-style:italic;'>"
-        f"Reference: {ref_text} (largest mean log-Euclidean distance)</span><br><br>"
+        f"Reference: {ref_text} ({reference_note})</span><br><br>"
     )
 
     sorted_legend_subgroups = sorted(
@@ -1553,16 +1646,36 @@ if (not has_samples) and reference_subgroup is not None and subgroup_reference_d
                 cmax=max(max_ref_distance, 1e-9),
                 showscale=True,
                 colorbar=dict(
-                    title=(
-                        "Log-Euclidean distance<br>"
-                        f"from {reference_subgroup}"
-                    ),
-                    thickness=20
+                    title="",
+                    thickness=20,
+                    len=0.92,
+                    y=0.5,
+                    yanchor="middle",
+                    x=1.035,
+                    xanchor="left",
+                    tickfont=dict(size=12)
                 )
             ),
             hoverinfo="skip",
             showlegend=False
         )
+    )
+
+    # Vertical title beside the subgroup-distance colorbar.
+    # Using an annotation instead of colorbar.title gives precise control
+    # over rotation and spacing, avoiding overlap with tick labels.
+    fig.add_annotation(
+        x=1.082,
+        y=0.5,
+        xref="paper",
+        yref="paper",
+        text=f"Log-Euclidean distance from {reference_subgroup}",
+        textangle=-90,
+        showarrow=False,
+        font=dict(size=14, color="black"),
+        xanchor="center",
+        yanchor="middle",
+        align="center"
     )
 
 if has_samples:
@@ -1697,6 +1810,9 @@ ticktext = [
 # Layout aligned more closely with the original garnet application.
 # In particular, do not draw a heavy bottom x-axis line; instead use
 # explicit top and left frame lines, as in the garnet plot.
+
+x_axis_title, y_axis_title, x_axis_title_size, y_axis_title_size = build_dynamic_axis_titles(labels)
+
 fig.update_layout(
     plot_bgcolor="white",
     paper_bgcolor="white",
@@ -1705,8 +1821,8 @@ fig.update_layout(
     height=PLOT_HEIGHT,
     xaxis=dict(
         title=dict(
-            text=f"Sum of {labels[0]} (%) + {labels[1]} (%)",
-            font=dict(size=35, color="black", family="Arial Black")
+            text=x_axis_title,
+            font=dict(size=x_axis_title_size, color="black", family="Arial Black")
         ),
         range=[-30, RECTANGLES[-1][0] + RECTANGLES[-1][1] + 20],
         tickvals=tickvals,
@@ -1721,8 +1837,8 @@ fig.update_layout(
     ),
     yaxis=dict(
         title=dict(
-            text=f"{labels[2]} (%) /// {labels[3]} (%) = grid height − {labels[2]} (%)",
-            font=dict(size=28, color="black", family="Arial Black")
+            text=y_axis_title,
+            font=dict(size=y_axis_title_size, color="black", family="Arial Black")
         ),
         range=[0, 100],
         constrain="domain",
@@ -1735,7 +1851,7 @@ fig.update_layout(
         ticks=""
     ),
     showlegend=False,
-    margin=dict(l=0, r=5, t=20, b=5),
+    margin=dict(l=0, r=70, t=20, b=5),
     hoverlabel=dict(font_size=24)
 )
 
