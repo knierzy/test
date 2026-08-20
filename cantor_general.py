@@ -1601,16 +1601,36 @@ if (not has_samples) and reference_subgroup is not None and subgroup_reference_d
                 cmax=max(max_ref_distance, 1e-9),
                 showscale=True,
                 colorbar=dict(
-                    title=(
-                        "Log-Euclidean distance<br>"
-                        f"from {reference_subgroup}"
-                    ),
-                    thickness=20
+                    title="",
+                    thickness=20,
+                    len=0.92,
+                    y=0.5,
+                    yanchor="middle",
+                    x=1.035,
+                    xanchor="left",
+                    tickfont=dict(size=12)
                 )
             ),
             hoverinfo="skip",
             showlegend=False
         )
+    )
+
+    # Vertical title beside the subgroup-distance colorbar.
+    # Using an annotation instead of colorbar.title gives precise control
+    # over rotation and spacing, avoiding overlap with tick labels.
+    fig.add_annotation(
+        x=1.082,
+        y=0.5,
+        xref="paper",
+        yref="paper",
+        text=f"Log-Euclidean distance from {reference_subgroup}",
+        textangle=-90,
+        showarrow=False,
+        font=dict(size=14, color="black"),
+        xanchor="center",
+        yanchor="middle",
+        align="center"
     )
 
 if has_samples:
@@ -1786,7 +1806,7 @@ fig.update_layout(
         ticks=""
     ),
     showlegend=False,
-    margin=dict(l=0, r=5, t=20, b=5),
+    margin=dict(l=0, r=70, t=20, b=5),
     hoverlabel=dict(font_size=24)
 )
 
