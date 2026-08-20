@@ -462,18 +462,20 @@ def calculate_subgroup_field_overlaps(subgroup_results):
 def dynamic_axis_font_size(text, base_size, min_size):
     """
     Scale an axis-title font according to the visible title length.
-    Short labels keep the original size; longer labels are reduced gradually.
+    The title always remains on a single line; only the font size changes.
     """
-    n = len(str(text).replace("<br>", " "))
+    n = len(str(text))
 
     if n <= 30:
         return base_size
     elif n <= 45:
-        return max(min_size, int(base_size * 0.86))
+        return max(min_size, int(base_size * 0.88))
     elif n <= 60:
-        return max(min_size, int(base_size * 0.74))
+        return max(min_size, int(base_size * 0.75))
     elif n <= 80:
-        return max(min_size, int(base_size * 0.64))
+        return max(min_size, int(base_size * 0.62))
+    elif n <= 100:
+        return max(min_size, int(base_size * 0.52))
     else:
         return min_size
 
@@ -482,23 +484,25 @@ def build_dynamic_axis_titles(labels):
     """
     Build x/y titles from the current parameter names.
 
-    Very long x-axis titles are split over two lines so that the text remains
-    readable without extending beyond the figure. The y-axis title remains on
-    one line and is handled by dynamic font scaling.
+    Both titles remain on a single line. Long parameter names are handled
+    automatically by reducing the corresponding axis-title font size.
     """
-    x_plain = f"Sum of {labels[0]} (%) + {labels[1]} (%)"
+    x_title = f"Sum of {labels[0]} (%) + {labels[1]} (%)"
     y_title = (
         f"{labels[2]} (%) /// {labels[3]} (%) = "
         f"grid height − {labels[2]} (%)"
     )
 
-    if len(x_plain) > 52:
-        x_title = f"Sum of {labels[0]} (%) +<br>{labels[1]} (%)"
-    else:
-        x_title = x_plain
-
-    x_size = dynamic_axis_font_size(x_plain, base_size=35, min_size=19)
-    y_size = dynamic_axis_font_size(y_title, base_size=28, min_size=16)
+    x_size = dynamic_axis_font_size(
+        x_title,
+        base_size=35,
+        min_size=14
+    )
+    y_size = dynamic_axis_font_size(
+        y_title,
+        base_size=28,
+        min_size=14
+    )
 
     return x_title, y_title, x_size, y_size
 
