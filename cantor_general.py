@@ -835,7 +835,7 @@ if generated_subgroups:
         for sg in generated_subgroups
     ])
 
-    st.dataframe(summary, use_container_width=True)
+    st.dataframe(summary, use_container_width=False)
 
     empty = [sg["name"] for sg in generated_subgroups if sg["points"].empty]
 
