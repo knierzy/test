@@ -466,13 +466,14 @@ def calculate_subgroup_field_overlaps(subgroup_results):
     )
 
 
-def add_overlap_hatching(fig, subgroup_results, hatch_spacing=0.55, hatch_alpha=0.22, hatch_width=0.7):
+def add_overlap_hatching(fig, subgroup_results, hatch_spacing=0.75, hatch_alpha=0.22, hatch_width=0.7):
     """
-    Draw a subtle diagonal hatch over actual pairwise overlap areas.
+    Draw subtle diagonal hatching over actual pairwise overlap areas.
 
-    The hatch is computed slice-by-slice from the same rectangular subgroup
-    geometry used for the overlap calculation. Only true geometric
-    intersections are hatched; touching boundaries are ignored.
+    Performance-optimized version:
+    instead of adding hundreds/thousands of Plotly layout shapes, all hatch
+    segments are collected into ONE Scatter trace separated by None values.
+    This keeps Streamlit rendering responsive.
     """
     valid = [sg for sg in subgroup_results if not sg["points"].empty]
 
@@ -482,6 +483,8 @@ def add_overlap_hatching(fig, subgroup_results, hatch_spacing=0.55, hatch_alpha=
     }
 
     drawn_regions = set()
+    hatch_x = []
+    hatch_y = []
 
     for i in range(len(valid)):
         for j in range(i + 1, len(valid)):
@@ -490,7 +493,6 @@ def add_overlap_hatching(fig, subgroup_results, hatch_spacing=0.55, hatch_alpha=
 
             rects_a = rect_maps[name_a]
             rects_b = rect_maps[name_b]
-
             common_abs = set(rects_a).intersection(rects_b)
 
             for ab in common_abs:
@@ -516,8 +518,8 @@ def add_overlap_hatching(fig, subgroup_results, hatch_spacing=0.55, hatch_alpha=
 
                 k_min = y0 - x1
                 k_max = y1 - x0
-
                 k = k_min
+
                 while k <= k_max + 1e-9:
                     pts = []
 
@@ -548,29 +550,39 @@ def add_overlap_hatching(fig, subgroup_results, hatch_spacing=0.55, hatch_alpha=
                     if len(unique) >= 2:
                         best_pair = None
                         best_d2 = -1.0
+
                         for a in range(len(unique)):
                             for b in range(a + 1, len(unique)):
                                 dx = unique[a][0] - unique[b][0]
                                 dy = unique[a][1] - unique[b][1]
                                 d2 = dx * dx + dy * dy
+
                                 if d2 > best_d2:
                                     best_d2 = d2
                                     best_pair = (unique[a], unique[b])
 
                         if best_pair is not None:
                             (sx, sy), (ex, ey) = best_pair
-                            fig.add_shape(
-                                type="line",
-                                x0=sx, y0=sy,
-                                x1=ex, y1=ey,
-                                line=dict(
-                                    color=f"rgba(35,35,35,{hatch_alpha})",
-                                    width=hatch_width
-                                ),
-                                layer="above"
-                            )
+                            hatch_x.extend([sx, ex, None])
+                            hatch_y.extend([sy, ey, None])
 
                     k += hatch_spacing
+
+    if hatch_x:
+        fig.add_trace(
+            go.Scatter(
+                x=hatch_x,
+                y=hatch_y,
+                mode="lines",
+                line=dict(
+                    color=f"rgba(35,35,35,{hatch_alpha})",
+                    width=hatch_width
+                ),
+                hoverinfo="skip",
+                showlegend=False,
+                name="Subgroup overlap hatching"
+            )
+        )
 
 
 def dynamic_axis_font_size(text, base_size, min_size):
@@ -1751,7 +1763,7 @@ if show_subgroups and generated_subgroups:
         add_overlap_hatching(
             fig,
             nonempty_subgroups,
-            hatch_spacing=0.55,
+            hatch_spacing=0.75,
             hatch_alpha=0.22,
             hatch_width=0.7
         )
