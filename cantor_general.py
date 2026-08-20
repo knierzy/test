@@ -466,6 +466,113 @@ def calculate_subgroup_field_overlaps(subgroup_results):
     )
 
 
+def add_overlap_hatching(fig, subgroup_results, hatch_spacing=0.55, hatch_alpha=0.22, hatch_width=0.7):
+    """
+    Draw a subtle diagonal hatch over actual pairwise overlap areas.
+
+    The hatch is computed slice-by-slice from the same rectangular subgroup
+    geometry used for the overlap calculation. Only true geometric
+    intersections are hatched; touching boundaries are ignored.
+    """
+    valid = [sg for sg in subgroup_results if not sg["points"].empty]
+
+    rect_maps = {
+        sg["name"]: subgroup_rectangles_by_ab(sg)
+        for sg in valid
+    }
+
+    drawn_regions = set()
+
+    for i in range(len(valid)):
+        for j in range(i + 1, len(valid)):
+            name_a = valid[i]["name"]
+            name_b = valid[j]["name"]
+
+            rects_a = rect_maps[name_a]
+            rects_b = rect_maps[name_b]
+
+            common_abs = set(rects_a).intersection(rects_b)
+
+            for ab in common_abs:
+                ax0, ax1, ay0, ay1 = rects_a[ab]
+                bx0, bx1, by0, by1 = rects_b[ab]
+
+                x0 = max(ax0, bx0)
+                x1 = min(ax1, bx1)
+                y0 = max(ay0, by0)
+                y1 = min(ay1, by1)
+
+                if x1 <= x0 or y1 <= y0:
+                    continue
+
+                region_key = (
+                    int(ab),
+                    round(x0, 4), round(x1, 4),
+                    round(y0, 4), round(y1, 4)
+                )
+                if region_key in drawn_regions:
+                    continue
+                drawn_regions.add(region_key)
+
+                k_min = y0 - x1
+                k_max = y1 - x0
+
+                k = k_min
+                while k <= k_max + 1e-9:
+                    pts = []
+
+                    y_at_x0 = x0 + k
+                    if y0 <= y_at_x0 <= y1:
+                        pts.append((x0, y_at_x0))
+
+                    y_at_x1 = x1 + k
+                    if y0 <= y_at_x1 <= y1:
+                        pts.append((x1, y_at_x1))
+
+                    x_at_y0 = y0 - k
+                    if x0 <= x_at_y0 <= x1:
+                        pts.append((x_at_y0, y0))
+
+                    x_at_y1 = y1 - k
+                    if x0 <= x_at_y1 <= x1:
+                        pts.append((x_at_y1, y1))
+
+                    unique = []
+                    for p in pts:
+                        if not any(
+                            abs(p[0] - q[0]) < 1e-9 and abs(p[1] - q[1]) < 1e-9
+                            for q in unique
+                        ):
+                            unique.append(p)
+
+                    if len(unique) >= 2:
+                        best_pair = None
+                        best_d2 = -1.0
+                        for a in range(len(unique)):
+                            for b in range(a + 1, len(unique)):
+                                dx = unique[a][0] - unique[b][0]
+                                dy = unique[a][1] - unique[b][1]
+                                d2 = dx * dx + dy * dy
+                                if d2 > best_d2:
+                                    best_d2 = d2
+                                    best_pair = (unique[a], unique[b])
+
+                        if best_pair is not None:
+                            (sx, sy), (ex, ey) = best_pair
+                            fig.add_shape(
+                                type="line",
+                                x0=sx, y0=sy,
+                                x1=ex, y1=ey,
+                                line=dict(
+                                    color=f"rgba(35,35,35,{hatch_alpha})",
+                                    width=hatch_width
+                                ),
+                                layer="above"
+                            )
+
+                    k += hatch_spacing
+
+
 def dynamic_axis_font_size(text, base_size, min_size):
     """
     Scale an axis-title font according to the visible title length.
@@ -1183,6 +1290,11 @@ show_subgroup_labels = st.checkbox(
     help="Places the first two letters of each subgroup name at the center of its generated field."
 )
 show_gray_grid = st.checkbox("Show gray Cantor grid", value=True)
+show_overlap_hatching = st.checkbox(
+    "Highlight subgroup overlap",
+    value=True,
+    help="Adds a subtle diagonal hatch only where subgroup fields geometrically overlap."
+)
 
 # Reference subgroup for log-Euclidean distances.
 # The default keeps the original automatic behavior.
@@ -1633,6 +1745,15 @@ if show_subgroups and generated_subgroups:
         st.caption(
             "Subgroup fields drawn: "
             + ", ".join(sg["name"] for sg in nonempty_subgroups)
+        )
+
+    if show_overlap_hatching and nonempty_subgroups:
+        add_overlap_hatching(
+            fig,
+            nonempty_subgroups,
+            hatch_spacing=0.55,
+            hatch_alpha=0.22,
+            hatch_width=0.7
         )
 
 # Continuous log-Euclidean subgroup-distance colorbar when no sample points are plotted.
