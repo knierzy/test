@@ -253,7 +253,14 @@ def add_subgroup_fields(fig, subgroup_results, hull_width=1.0, subfield_width=1.
             continue
 
         color = (color_map or {}).get(sg["name"], SUBGROUP_COLORS[idx % len(SUBGROUP_COLORS)])
-        fill = rgba_with_alpha(color, 0.25)
+
+        # Softer garnet-style subgroup appearance:
+        # subtle fill, moderately transparent subfield outline,
+        # and an even softer dashed outer hull.
+        fill = rgba_with_alpha(color, 0.12)
+        subfield_line_color = rgba_with_alpha(color, 0.70)
+        hull_line_color = rgba_with_alpha(color, 0.60)
+
         first_trace = True
 
         for ab, group in pts.groupby("AB"):
@@ -282,7 +289,7 @@ def add_subgroup_fields(fig, subgroup_results, hull_width=1.0, subfield_width=1.
                     x=[x_min, x_min, x_max, x_max, x_min],
                     y=[y_min, y_max, y_max, y_min, y_min],
                     mode="lines",
-                    line=dict(color=color, width=subfield_width),
+                    line=dict(color=subfield_line_color, width=subfield_width),
                     fill="toself",
                     fillcolor=fill,
                     name=sg["name"],
@@ -312,7 +319,7 @@ def add_subgroup_fields(fig, subgroup_results, hull_width=1.0, subfield_width=1.
                     x=hull_x,
                     y=hull_y,
                     mode="lines",
-                    line=dict(color=color, width=hull_width, dash="dash"),
+                    line=dict(color=hull_line_color, width=hull_width, dash="dash"),
                     fill=None,
                     hoverinfo="skip",
                     legendgroup=sg["name"],
@@ -325,7 +332,7 @@ def add_subgroup_fields(fig, subgroup_results, hull_width=1.0, subfield_width=1.
                     x=[hull[0][0], hull[1][0]],
                     y=[hull[0][1], hull[1][1]],
                     mode="lines",
-                    line=dict(color=color, width=hull_width, dash="dash"),
+                    line=dict(color=hull_line_color, width=hull_width, dash="dash"),
                     hoverinfo="skip",
                     legendgroup=sg["name"],
                     showlegend=False
@@ -1146,7 +1153,7 @@ with pc3:
         "Subgroup convex hull line width",
         min_value=0.2,
         max_value=5.0,
-        value=1.0,
+        value=0.8,
         step=0.1,
         help="Controls the thickness of the dashed outer convex-hull line around each subgroup."
     )
@@ -1157,7 +1164,7 @@ with pc4:
         max_value=5.0,
         value=1.0,
         step=0.1,
-        help="Controls the thickness of the black boundary line around each individual scattered subfield."
+        help="Controls the thickness of the colored boundary line around each individual scattered subfield."
     )
 
 legend_scale = st.slider(
