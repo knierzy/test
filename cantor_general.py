@@ -562,13 +562,14 @@ def log_euclidean_distance(mu_i, mu_j):
     )
 
 
-def subgroup_reference_distance_colors(subgroup_results, colorscale):
+def subgroup_reference_distance_colors(subgroup_results, colorscale, reference_name=None):
     """
     For plots without sample points:
     1) calculate the mean A/B/C/D composition of every subgroup,
     2) calculate all pairwise log-Euclidean distances using ln(x + 1),
-    3) choose as reference the subgroup with the largest mean distance
-       to all other subgroups (most compositionally distinct),
+    3) use either a user-selected reference subgroup or, by default,
+       automatically choose the subgroup with the largest mean distance
+       to all other subgroups,
     4) color every subgroup continuously by its log-Euclidean distance
        from that reference.
     """
@@ -607,10 +608,15 @@ def subgroup_reference_distance_colors(subgroup_results, colorscale):
         for name in names
     }
 
-    # Most compositionally distinct subgroup = largest average LED to all others.
-    ref_name = max(mean_distance, key=mean_distance.get)
+    # Default: most compositionally distinct subgroup.
+    automatic_ref_name = max(mean_distance, key=mean_distance.get)
 
-    # Distances of all groups from the selected reference.
+    # User selection overrides the automatic reference when valid.
+    if reference_name in names:
+        ref_name = reference_name
+    else:
+        ref_name = automatic_ref_name
+
     distances = {
         name: float(pairwise[ref_name][name])
         for name in names
@@ -1171,6 +1177,31 @@ show_subgroup_labels = st.checkbox(
 )
 show_gray_grid = st.checkbox("Show gray Cantor grid", value=True)
 
+# Reference subgroup for log-Euclidean distances.
+# The default keeps the original automatic behavior.
+available_reference_groups = [
+    sg["name"] for sg in generated_subgroups if not sg["points"].empty
+]
+
+reference_mode_options = ["Automatic (largest mean distance)"] + available_reference_groups
+
+selected_reference_option = st.selectbox(
+    "Log-Euclidean reference subgroup",
+    reference_mode_options,
+    index=0,
+    help=(
+        "Automatic selects the subgroup with the largest mean log-Euclidean "
+        "distance to all other subgroups. Alternatively, choose any subgroup "
+        "as the reference for the displayed distances and color scale."
+    )
+)
+
+selected_reference_name = (
+    None
+    if selected_reference_option == "Automatic (largest mean distance)"
+    else selected_reference_option
+)
+
 
 # ============================================================
 # 6. Plot
@@ -1208,10 +1239,16 @@ else:
         subgroup_distance_color_map,
         subgroup_means,
         subgroup_sigmas,
-    ) = subgroup_reference_distance_colors(generated_subgroups, colorscale)
+    ) = subgroup_reference_distance_colors(
+        generated_subgroups,
+        colorscale,
+        reference_name=selected_reference_name
+    )
 
     summary_df = pd.DataFrame(columns=["Subgroup", "Points", "Percent"])
     first_locality = "no sample points"
+
+reference_is_automatic = selected_reference_name is None
 
 
 PLOT_WIDTH = 1700
@@ -1429,8 +1466,11 @@ else:
 
     longest_entry_chars = max(
         [
-            len("Subgroups"),
-            len(f"Reference: {reference_subgroup} (most compositionally distinct)"),
+            len("Log-Euclidean distance"),
+            len(
+                f"Reference: {reference_subgroup} "
+                + ("(automatic: largest mean distance)" if reference_is_automatic else "(user selected)")
+            ),
             len("Subgroup field overlap (shared area as % of each field)")
         ]
         + [len(name) + 9 for name in nonempty_names]
@@ -1445,10 +1485,15 @@ else:
     legend_x1 = min(0.92, legend_x0 + legend_width)
 
     ref_text = reference_subgroup if reference_subgroup is not None else "not available"
+    reference_note = (
+        "automatic: largest mean distance"
+        if reference_is_automatic
+        else "user selected"
+    )
     stats_legend_text = (
-        f"<span style='font-size:{title_fs}px; font-weight:bold;'>Subgroups</span><br>"
+        f"<span style='font-size:{title_fs}px; font-weight:bold;'>Log-Euclidean distance</span><br>"
         f"<span style='font-size:{int(22 * legend_scale)}px; font-style:italic;'>"
-        f"Reference: {ref_text} (largest mean log-Euclidean distance)</span><br><br>"
+        f"Reference: {ref_text} ({reference_note})</span><br><br>"
     )
 
     sorted_legend_subgroups = sorted(
