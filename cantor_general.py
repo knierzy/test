@@ -459,6 +459,50 @@ def calculate_subgroup_field_overlaps(subgroup_results):
     )
 
 
+def dynamic_axis_font_size(text, base_size, min_size):
+    """
+    Scale an axis-title font according to the visible title length.
+    Short labels keep the original size; longer labels are reduced gradually.
+    """
+    n = len(str(text).replace("<br>", " "))
+
+    if n <= 30:
+        return base_size
+    elif n <= 45:
+        return max(min_size, int(base_size * 0.86))
+    elif n <= 60:
+        return max(min_size, int(base_size * 0.74))
+    elif n <= 80:
+        return max(min_size, int(base_size * 0.64))
+    else:
+        return min_size
+
+
+def build_dynamic_axis_titles(labels):
+    """
+    Build x/y titles from the current parameter names.
+
+    Very long x-axis titles are split over two lines so that the text remains
+    readable without extending beyond the figure. The y-axis title remains on
+    one line and is handled by dynamic font scaling.
+    """
+    x_plain = f"Sum of {labels[0]} (%) + {labels[1]} (%)"
+    y_title = (
+        f"{labels[2]} (%) /// {labels[3]} (%) = "
+        f"grid height − {labels[2]} (%)"
+    )
+
+    if len(x_plain) > 52:
+        x_title = f"Sum of {labels[0]} (%) +<br>{labels[1]} (%)"
+    else:
+        x_title = x_plain
+
+    x_size = dynamic_axis_font_size(x_plain, base_size=35, min_size=19)
+    y_size = dynamic_axis_font_size(y_title, base_size=28, min_size=16)
+
+    return x_title, y_title, x_size, y_size
+
+
 def subgroup_statistics_from_generated(subgroup_results):
     """
     Calculate mean compositions and standard deviations for each subgroup
@@ -1697,6 +1741,9 @@ ticktext = [
 # Layout aligned more closely with the original garnet application.
 # In particular, do not draw a heavy bottom x-axis line; instead use
 # explicit top and left frame lines, as in the garnet plot.
+
+x_axis_title, y_axis_title, x_axis_title_size, y_axis_title_size = build_dynamic_axis_titles(labels)
+
 fig.update_layout(
     plot_bgcolor="white",
     paper_bgcolor="white",
@@ -1705,8 +1752,8 @@ fig.update_layout(
     height=PLOT_HEIGHT,
     xaxis=dict(
         title=dict(
-            text=f"Sum of {labels[0]} (%) + {labels[1]} (%)",
-            font=dict(size=35, color="black", family="Arial Black")
+            text=x_axis_title,
+            font=dict(size=x_axis_title_size, color="black", family="Arial Black")
         ),
         range=[-30, RECTANGLES[-1][0] + RECTANGLES[-1][1] + 20],
         tickvals=tickvals,
@@ -1721,8 +1768,8 @@ fig.update_layout(
     ),
     yaxis=dict(
         title=dict(
-            text=f"{labels[2]} (%) /// {labels[3]} (%) = grid height − {labels[2]} (%)",
-            font=dict(size=28, color="black", family="Arial Black")
+            text=y_axis_title,
+            font=dict(size=y_axis_title_size, color="black", family="Arial Black")
         ),
         range=[0, 100],
         constrain="domain",
