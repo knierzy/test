@@ -8,7 +8,7 @@ import streamlit as st
 st.set_page_config(layout="wide", page_title="Cantor Grids")
 
 st.title("Cantor Grids – Four-Parameter Compositional Visualization")
-st.caption("Build: V34 — sorted log-Euclidean subgroup legend")
+st.caption("Build: V35 — garnet-style display and export")
 st.caption(
     "Define four compositional parameters, create subgroup fields from parameter ranges, "
     "and optionally add sample points manually or from Excel."
@@ -1040,7 +1040,8 @@ else:
     first_locality = "no sample points"
 
 
-PLOT_HEIGHT = 950
+PLOT_WIDTH = 2260
+PLOT_HEIGHT = 1210
 
 if has_samples:
     # Dynamic statistics-box sizing.
@@ -1458,7 +1459,7 @@ fig.update_layout(
     plot_bgcolor="white",
     paper_bgcolor="white",
     autosize=False,
-    width=1500,
+    width=PLOT_WIDTH,
     height=PLOT_HEIGHT,
     xaxis=dict(
         title=dict(
@@ -1562,7 +1563,48 @@ fig.update_layout(
 
 
 
-st.plotly_chart(fig, use_container_width=False)
+st.plotly_chart(fig, use_container_width=True)
+
+# ========================================================
+# Export figure — same dimensions as the displayed figure
+# ========================================================
+
+st.subheader("Export figure")
+
+export_format = st.selectbox(
+    "Export format",
+    ["PNG", "SVG"],
+    key="cantor_export_format"
+)
+
+try:
+    img_bytes = fig.to_image(
+        format=export_format.lower(),
+        width=PLOT_WIDTH,
+        height=PLOT_HEIGHT,
+        scale=2
+    )
+
+    if export_format == "PNG":
+        file_extension = "png"
+        mime_type = "image/png"
+    else:
+        file_extension = "svg"
+        mime_type = "image/svg+xml"
+
+    st.download_button(
+        label=f"Download {export_format}",
+        data=img_bytes,
+        file_name=f"cantor_grid.{file_extension}",
+        mime=mime_type
+    )
+
+except Exception as exc:
+    st.warning(
+        "Figure export is currently unavailable. "
+        "For PNG/SVG export, make sure Kaleido is installed. "
+        f"Details: {exc}"
+    )
 
 if has_samples:
     # ========================================================
