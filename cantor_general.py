@@ -473,7 +473,7 @@ def add_overlap_hatching(
     hatch_alpha=0.70,
     hatch_width=1.60,
     outline_alpha=0.75,
-    outline_width=1.20
+    outline_width=2.20
 ):
     """
     Highlight actual pairwise overlap areas with a clearly visible but still
@@ -1800,7 +1800,7 @@ if show_subgroups and generated_subgroups:
             hatch_alpha=0.70,
             hatch_width=1.60,
             outline_alpha=0.75,
-            outline_width=1.20
+            outline_width=2.20
         )
 
 # Continuous log-Euclidean subgroup-distance colorbar when no sample points are plotted.
