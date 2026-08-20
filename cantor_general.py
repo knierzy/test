@@ -1041,7 +1041,7 @@ else:
 
 
 PLOT_WIDTH = 2260
-PLOT_HEIGHT = 450
+PLOT_HEIGHT = 750
 
 if has_samples:
     # Dynamic statistics-box sizing.
