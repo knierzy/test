@@ -253,7 +253,7 @@ def add_subgroup_fields(fig, subgroup_results, hull_width=1.0, color_map=None):
             continue
 
         color = (color_map or {}).get(sg["name"], SUBGROUP_COLORS[idx % len(SUBGROUP_COLORS)])
-        fill = rgba_with_alpha(color, 0.40)
+        fill = rgba_with_alpha(color, 0.25)
         first_trace = True
 
         for ab, group in pts.groupby("AB"):
@@ -282,7 +282,7 @@ def add_subgroup_fields(fig, subgroup_results, hull_width=1.0, color_map=None):
                     x=[x_min, x_min, x_max, x_max, x_min],
                     y=[y_min, y_max, y_max, y_min, y_min],
                     mode="lines",
-                    line=dict(color=color, width=1.5),
+                    line=dict(color=color, width=2.7),
                     fill="toself",
                     fillcolor=fill,
                     name=sg["name"],
