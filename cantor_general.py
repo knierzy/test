@@ -466,14 +466,22 @@ def calculate_subgroup_field_overlaps(subgroup_results):
     )
 
 
-def add_overlap_hatching(fig, subgroup_results, hatch_spacing=0.75, hatch_alpha=0.22, hatch_width=0.7):
+def add_overlap_hatching(
+    fig,
+    subgroup_results,
+    hatch_spacing=0.85,
+    hatch_alpha=0.50,
+    hatch_width=1.25,
+    outline_alpha=0.60,
+    outline_width=1.0
+):
     """
-    Draw subtle diagonal hatching over actual pairwise overlap areas.
+    Highlight actual pairwise overlap areas with a clearly visible but still
+    restrained red diagonal hatch plus a thin dashed red overlap boundary.
 
-    Performance-optimized version:
-    instead of adding hundreds/thousands of Plotly layout shapes, all hatch
-    segments are collected into ONE Scatter trace separated by None values.
-    This keeps Streamlit rendering responsive.
+    Performance-optimized:
+    all hatch segments are collected into one Scatter trace and all overlap
+    outlines into a second Scatter trace, instead of creating many shapes.
     """
     valid = [sg for sg in subgroup_results if not sg["points"].empty]
 
@@ -485,6 +493,8 @@ def add_overlap_hatching(fig, subgroup_results, hatch_spacing=0.75, hatch_alpha=
     drawn_regions = set()
     hatch_x = []
     hatch_y = []
+    outline_x = []
+    outline_y = []
 
     for i in range(len(valid)):
         for j in range(i + 1, len(valid)):
@@ -516,6 +526,11 @@ def add_overlap_hatching(fig, subgroup_results, hatch_spacing=0.75, hatch_alpha=
                     continue
                 drawn_regions.add(region_key)
 
+                # Thin dashed outline around the true overlap rectangle.
+                outline_x.extend([x0, x0, x1, x1, x0, None])
+                outline_y.extend([y0, y1, y1, y0, y0, None])
+
+                # Diagonal hatch lines with positive slope.
                 k_min = y0 - x1
                 k_max = y1 - x0
                 k = k_min
@@ -542,7 +557,8 @@ def add_overlap_hatching(fig, subgroup_results, hatch_spacing=0.75, hatch_alpha=
                     unique = []
                     for p in pts:
                         if not any(
-                            abs(p[0] - q[0]) < 1e-9 and abs(p[1] - q[1]) < 1e-9
+                            abs(p[0] - q[0]) < 1e-9 and
+                            abs(p[1] - q[1]) < 1e-9
                             for q in unique
                         ):
                             unique.append(p)
@@ -575,12 +591,29 @@ def add_overlap_hatching(fig, subgroup_results, hatch_spacing=0.75, hatch_alpha=
                 y=hatch_y,
                 mode="lines",
                 line=dict(
-                    color=f"rgba(35,35,35,{hatch_alpha})",
+                    color=f"rgba(210,35,35,{hatch_alpha})",
                     width=hatch_width
                 ),
                 hoverinfo="skip",
                 showlegend=False,
                 name="Subgroup overlap hatching"
+            )
+        )
+
+    if outline_x:
+        fig.add_trace(
+            go.Scatter(
+                x=outline_x,
+                y=outline_y,
+                mode="lines",
+                line=dict(
+                    color=f"rgba(190,20,20,{outline_alpha})",
+                    width=outline_width,
+                    dash="dot"
+                ),
+                hoverinfo="skip",
+                showlegend=False,
+                name="Subgroup overlap boundary"
             )
         )
 
@@ -1763,9 +1796,11 @@ if show_subgroups and generated_subgroups:
         add_overlap_hatching(
             fig,
             nonempty_subgroups,
-            hatch_spacing=0.75,
-            hatch_alpha=0.22,
-            hatch_width=0.7
+            hatch_spacing=0.85,
+            hatch_alpha=0.50,
+            hatch_width=1.25,
+            outline_alpha=0.60,
+            outline_width=1.0
         )
 
 # Continuous log-Euclidean subgroup-distance colorbar when no sample points are plotted.
