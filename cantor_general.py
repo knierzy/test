@@ -789,7 +789,7 @@ The letters A–D refer to the parameter names defined above.
                     ]
 
                     st.success(f"{len(subgroup_defs)} subgroup(s) loaded.")
-                    st.dataframe(preview, use_container_width=True)
+                    st.dataframe(preview, use_container_width=False)
 
                     for row_no, name, sum_min, sum_max, range_error in invalid_rows:
                         if range_error:
