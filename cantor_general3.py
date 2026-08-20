@@ -8,7 +8,7 @@ import streamlit as st
 st.set_page_config(layout="wide", page_title="Cantor Grids")
 
 st.title("Cantor Grids – Four-Parameter Compositional Visualization")
-st.caption("Build: V35 — garnet-style display and export")
+st.caption("Build: V35 — matched Explorer/export dimensions")
 st.caption(
     "Define four compositional parameters, create subgroup fields from parameter ranges, "
     "and optionally add sample points manually or from Excel."
@@ -331,6 +331,132 @@ def add_subgroup_fields(fig, subgroup_results, hull_width=1.0, subfield_width=1.
                     showlegend=False
                 )
             )
+
+
+def subgroup_rectangles_by_ab(sg):
+    """
+    Return the visible rectangular subgroup field for each AB slice.
+
+    The geometry is calculated exactly like in add_subgroup_fields(), including
+    the +/- 0.45 padding and clipping to the valid Cantor-grid slice.
+    """
+    pts = sg["points"]
+    rectangles = {}
+
+    if pts.empty:
+        return rectangles
+
+    for ab, group in pts.groupby("AB"):
+        x_min = float(group["x"].min()) - 0.45
+        x_max = float(group["x"].max()) + 0.45
+        y_min = float(group["y"].min()) - 0.45
+        y_max = float(group["y"].max()) + 0.45
+
+        row = int(99 - ab)
+        row_start, height, _ = RECTANGLES[row]
+
+        valid_x_min = float(row_start)
+        valid_x_max = float(row_start + height)
+        valid_y_min = 0.0
+        valid_y_max = float(100 - ab)
+
+        x_min = max(x_min, valid_x_min)
+        x_max = min(x_max, valid_x_max)
+        y_min = max(y_min, valid_y_min)
+        y_max = min(y_max, valid_y_max)
+
+        if x_max > x_min and y_max > y_min:
+            rectangles[int(ab)] = (x_min, x_max, y_min, y_max)
+
+    return rectangles
+
+
+def calculate_subgroup_field_overlaps(subgroup_results):
+    """
+    Calculate actual geometric overlap of the visible subgroup fields.
+
+    Pairwise and three-way intersections are evaluated. For every overlapping
+    combination, the shared intersection area is expressed separately as a
+    percentage of EACH participating subgroup field:
+
+        overlap of A = intersection(A,B,...) / area(A) * 100
+
+    Thus asymmetric overlap is preserved. Example:
+        A–B: A 30% | B 60%
+
+    For a three-way overlap:
+        A–B–C: A 20% | B 35% | C 55%
+    """
+    valid = [sg for sg in subgroup_results if not sg["points"].empty]
+
+    rect_maps = {
+        sg["name"]: subgroup_rectangles_by_ab(sg)
+        for sg in valid
+    }
+
+    total_areas = {}
+    for sg in valid:
+        name = sg["name"]
+        total_areas[name] = sum(
+            (x_max - x_min) * (y_max - y_min)
+            for x_min, x_max, y_min, y_max in rect_maps[name].values()
+        )
+
+    overlaps = []
+
+    # Evaluate pairwise and three-way overlaps.
+    max_order = min(3, len(valid))
+
+    for order in range(2, max_order + 1):
+        for combo in itertools.combinations(valid, order):
+            names = [sg["name"] for sg in combo]
+            maps = [rect_maps[name] for name in names]
+
+            common_abs = set(maps[0].keys())
+            for rect_map in maps[1:]:
+                common_abs &= set(rect_map.keys())
+
+            intersection_area = 0.0
+
+            for ab in common_abs:
+                rects = [rect_map[ab] for rect_map in maps]
+
+                overlap_x = max(
+                    0.0,
+                    min(r[1] for r in rects) - max(r[0] for r in rects)
+                )
+                overlap_y = max(
+                    0.0,
+                    min(r[3] for r in rects) - max(r[2] for r in rects)
+                )
+
+                intersection_area += overlap_x * overlap_y
+
+            if intersection_area <= 0:
+                continue
+
+            percentages = {
+                name: (
+                    intersection_area / total_areas[name] * 100.0
+                    if total_areas[name] > 0 else 0.0
+                )
+                for name in names
+            }
+
+            overlaps.append({
+                "Names": names,
+                "Order": order,
+                "Intersection_area": intersection_area,
+                "Percentages": percentages,
+                # Sorting score: strongest affected participating subgroup.
+                "Max_percent": max(percentages.values()),
+            })
+
+    return sorted(
+        overlaps,
+        key=lambda row: (row["Order"], row["Max_percent"]),
+        reverse=True
+    )
 
 
 def subgroup_statistics_from_generated(subgroup_results):
@@ -1040,8 +1166,17 @@ else:
     first_locality = "no sample points"
 
 
-PLOT_WIDTH = 2260
-PLOT_HEIGHT = 750
+PLOT_WIDTH = 1700
+PLOT_HEIGHT = 950
+
+# Pairwise and three-way geometric overlap of visible subgroup fields.
+# Percentages are reported separately relative to each participating field.
+subgroup_field_overlaps = calculate_subgroup_field_overlaps(generated_subgroups)
+
+# Keep the in-plot text box compact when many subgroup pairs overlap.
+MAX_OVERLAP_LINES = 6
+displayed_overlaps = subgroup_field_overlaps[:MAX_OVERLAP_LINES]
+hidden_overlap_count = max(0, len(subgroup_field_overlaps) - len(displayed_overlaps))
 
 if has_samples:
     # Dynamic statistics-box sizing.
@@ -1079,6 +1214,17 @@ if has_samples:
     padding_top_px = 18 * legend_scale
     padding_bottom_px = 24 * legend_scale
 
+    overlap_header_px = (24 * legend_scale) if displayed_overlaps else 0
+    overlap_line_px = (22 * legend_scale) if displayed_overlaps else 0
+    overlap_extra_lines = len(displayed_overlaps) + (1 if hidden_overlap_count > 0 else 0)
+    overlap_block_px = (
+        (18 * legend_scale)
+        + overlap_header_px
+        + overlap_extra_lines * overlap_line_px
+        if displayed_overlaps
+        else 0
+    )
+
     legend_height_px = (
         padding_top_px
         + title_line_px
@@ -1087,6 +1233,7 @@ if has_samples:
         + locality_line_px
         + gap_before_groups_px
         + n_subgroups * subgroup_line_px
+        + overlap_block_px
         + padding_bottom_px
     )
 
@@ -1106,12 +1253,22 @@ if has_samples:
             f"{_row['Subgroup']} {int(_row['Points'])} points ({float(_row['Percent']):.1f}%)"
         )
 
+    overlap_entries = [
+        " – ".join(o["Names"]) + ": " + " | ".join(
+            f"{name} {o['Percentages'][name]:.1f}%"
+            for name in o["Names"]
+        )
+        for o in displayed_overlaps
+    ]
+
     longest_entry_chars = max(
         [len("Subgroup Classification"),
          len("Classification -> Mahalanobis distance"),
          len("(diagonal covariance approximation)"),
-         len(f"Locality: {first_locality}")]
+         len(f"Locality: {first_locality}"),
+         len("Subgroup field overlap (shared area as % of each field)")]
         + [len(x) for x in complete_entries]
+        + [len(x) for x in overlap_entries]
     )
 
     # Character-based width estimate with padding. Cap prevents the box from
@@ -1145,6 +1302,35 @@ if has_samples:
             f'</span><br>'
         )
 
+    if displayed_overlaps:
+        overlap_fs = int(20 * legend_scale)
+        overlap_header_fs = int(22 * legend_scale)
+        stats_legend_text += (
+            f"<br><span style='font-size:{overlap_header_fs}px; font-weight:bold;'>"
+            "Subgroup field overlap</span>"
+            f"<span style='font-size:{overlap_fs}px; font-style:italic;'> "
+            "(shared area as % of each field)</span><br>"
+        )
+
+        for overlap in displayed_overlaps:
+            overlap_names = " – ".join(overlap["Names"])
+            overlap_values = " | ".join(
+                f"{name} {overlap['Percentages'][name]:.1f}%"
+                for name in overlap["Names"]
+            )
+            stats_legend_text += (
+                f"<span style='font-size:{overlap_fs}px;'>"
+                f"{overlap_names}: {overlap_values}"
+                "</span><br>"
+            )
+
+        if hidden_overlap_count > 0:
+            stats_legend_text += (
+                f"<span style='font-size:{overlap_fs}px; font-style:italic;'>"
+                f"+ {hidden_overlap_count} additional overlapping pair(s)"
+                "</span><br>"
+            )
+
 else:
     # Keep a subgroup legend box visible even when no sample points are plotted.
     n_subgroups = max(len([sg for sg in generated_subgroups if not sg["points"].empty]), 1)
@@ -1158,11 +1344,23 @@ else:
     padding_bottom_px = 24 * legend_scale
     gap_before_groups_px = 18 * legend_scale
 
+    overlap_header_px = (24 * legend_scale) if displayed_overlaps else 0
+    overlap_line_px = (22 * legend_scale) if displayed_overlaps else 0
+    overlap_extra_lines = len(displayed_overlaps) + (1 if hidden_overlap_count > 0 else 0)
+    overlap_block_px = (
+        (18 * legend_scale)
+        + overlap_header_px
+        + overlap_extra_lines * overlap_line_px
+        if displayed_overlaps
+        else 0
+    )
+
     legend_height_px = (
         padding_top_px
         + title_fs * 1.35
         + gap_before_groups_px
         + n_subgroups * subgroup_line_px
+        + overlap_block_px
         + padding_bottom_px
     )
 
@@ -1173,8 +1371,22 @@ else:
     nonempty_names = [
         sg["name"] for sg in generated_subgroups if not sg["points"].empty
     ]
+    overlap_entries = [
+        " – ".join(o["Names"]) + ": " + " | ".join(
+            f"{name} {o['Percentages'][name]:.1f}%"
+            for name in o["Names"]
+        )
+        for o in displayed_overlaps
+    ]
+
     longest_entry_chars = max(
-        [len("Subgroups"), len(f"Reference: {reference_subgroup} (most compositionally distinct)")] + [len(name) + 9 for name in nonempty_names]
+        [
+            len("Subgroups"),
+            len(f"Reference: {reference_subgroup} (most compositionally distinct)"),
+            len("Subgroup field overlap (shared area as % of each field)")
+        ]
+        + [len(name) + 9 for name in nonempty_names]
+        + [len(x) for x in overlap_entries]
     )
 
     legend_width = min(
@@ -1209,6 +1421,36 @@ else:
             f'{sg["name"]}</span> '
             f'<span style="font-size:{int(23 * legend_scale)}px;">d={distance_txt}</span><br>'
         )
+
+    if displayed_overlaps:
+        overlap_fs = int(20 * legend_scale)
+        overlap_header_fs = int(22 * legend_scale)
+        stats_legend_text += (
+            f"<br><span style='font-size:{overlap_header_fs}px; font-weight:bold;'>"
+            "Subgroup field overlap</span>"
+            f"<span style='font-size:{overlap_fs}px; font-style:italic;'> "
+            "(shared area as % of each field)</span><br>"
+        )
+
+        for overlap in displayed_overlaps:
+            overlap_names = " – ".join(overlap["Names"])
+            overlap_values = " | ".join(
+                f"{name} {overlap['Percentages'][name]:.1f}%"
+                for name in overlap["Names"]
+            )
+            stats_legend_text += (
+                f"<span style='font-size:{overlap_fs}px;'>"
+                f"{overlap_names}: {overlap_values}"
+                "</span><br>"
+            )
+
+        if hidden_overlap_count > 0:
+            stats_legend_text += (
+                f"<span style='font-size:{overlap_fs}px; font-style:italic;'>"
+                f"+ {hidden_overlap_count} additional overlapping pair(s)"
+                "</span><br>"
+            )
+
 fig = go.Figure()
 
 # Background first
