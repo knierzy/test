@@ -1562,7 +1562,7 @@ fig.update_layout(
 
 
 
-st.plotly_chart(fig, use_container_width=True)
+st.plotly_chart(fig, use_container_width=False)
 
 if has_samples:
     # ========================================================
@@ -1578,7 +1578,7 @@ if has_samples:
     )
 
     if not summary_df.empty:
-        st.dataframe(summary_df, use_container_width=True)
+        st.dataframe(summary_df, use_container_width=False)
 
     if subgroup_means:
         stats_rows = []
@@ -1615,7 +1615,7 @@ if has_samples:
             "D": labels[3]
         }
     )
-    st.dataframe(display_df, use_container_width=True)
+    st.dataframe(display_df, use_container_width=False)
 
 else:
     st.caption(
