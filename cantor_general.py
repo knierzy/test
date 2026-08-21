@@ -1380,7 +1380,7 @@ with pc1:
 with pc2:
     colorscale = st.selectbox(
         "Sample color scale",
-        ["Plasma", "Viridis", "Turbo", "Inferno", "Cividis", "RdYlBu"]
+        ["Viridis", "Plasma","Turbo", "Inferno", "Cividis", "RdYlBu","YlOrRd"]
     )
 with pc3:
     subgroup_hull_width = st.slider(
@@ -1405,7 +1405,7 @@ legend_scale = st.slider(
     "Statistics box size factor",
     min_value=0.5,
     max_value=1.8,
-    value=0.8,
+    value=0.6,
     step=0.05,
     help="Scales the in-plot statistics box and text. Useful when many subgroups are defined."
 )
