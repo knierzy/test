@@ -1407,7 +1407,7 @@ legend_scale = st.slider(
     "Statistics box size factor",
     min_value=0.5,
     max_value=1.8,
-    value=0.8,
+    value=0.6,
     step=0.05,
     help="Scales the in-plot statistics box and text. Useful when many subgroups are defined."
 )
@@ -1415,7 +1415,7 @@ legend_scale = st.slider(
 show_subgroups = st.checkbox("Show subgroup fields", value=True)
 show_subgroup_labels = st.checkbox(
     "Show subgroup labels (first two letters)",
-    value=False,
+    value=True,
     help="Places the first two letters of each subgroup name at the center of its generated field."
 )
 show_gray_grid = st.checkbox("Show gray Cantor grid", value=True)
