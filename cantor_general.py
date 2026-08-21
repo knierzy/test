@@ -2251,7 +2251,7 @@ try:
         format=export_format.lower(),
         width=PLOT_WIDTH,
         height=PLOT_HEIGHT,
-        scale=2
+        scale=3
     )
 
     if export_format == "PNG":
