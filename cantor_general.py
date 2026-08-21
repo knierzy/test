@@ -469,20 +469,19 @@ def calculate_subgroup_field_overlaps(subgroup_results):
 def add_overlap_hatching(
     fig,
     subgroup_results,
-    hatch_spacing=0.45,
-    hatch_alpha=0.92,
-    hatch_width=2.40,
-    outline_alpha=0.95,
-    outline_width=3.00,
-    fill_alpha=0.16
+    hatch_spacing=0.65,
+    hatch_alpha=0.70,
+    hatch_width=1.60,
+    outline_alpha=0.75,
+    outline_width=2.20
 ):
     """
-    Highlight actual pairwise overlap areas more clearly.
+    Highlight actual pairwise overlap areas with a clearly visible but still
+    restrained red diagonal hatch plus a thin dashed red overlap boundary.
 
-    Each true overlap region receives:
-    - a subtle translucent red fill,
-    - dense red diagonal hatching,
-    - a clearly visible dotted red boundary.
+    Performance-optimized:
+    all hatch segments are collected into one Scatter trace and all overlap
+    outlines into a second Scatter trace, instead of creating many shapes.
     """
     valid = [sg for sg in subgroup_results if not sg["points"].empty]
 
@@ -492,9 +491,10 @@ def add_overlap_hatching(
     }
 
     drawn_regions = set()
-    fill_x, fill_y = [], []
-    hatch_x, hatch_y = [], []
-    outline_x, outline_y = [], []
+    hatch_x = []
+    hatch_y = []
+    outline_x = []
+    outline_y = []
 
     for i in range(len(valid)):
         for j in range(i + 1, len(valid)):
@@ -526,12 +526,11 @@ def add_overlap_hatching(
                     continue
                 drawn_regions.add(region_key)
 
-                fill_x.extend([x0, x0, x1, x1, x0, None])
-                fill_y.extend([y0, y1, y1, y0, y0, None])
-
+                # Thin dashed outline around the true overlap rectangle.
                 outline_x.extend([x0, x0, x1, x1, x0, None])
                 outline_y.extend([y0, y1, y1, y0, y0, None])
 
+                # Diagonal hatch lines with positive slope.
                 k_min = y0 - x1
                 k_max = y1 - x0
                 k = k_min
@@ -585,21 +584,6 @@ def add_overlap_hatching(
 
                     k += hatch_spacing
 
-    if fill_x:
-        fig.add_trace(
-            go.Scatter(
-                x=fill_x,
-                y=fill_y,
-                mode="lines",
-                line=dict(width=0),
-                fill="toself",
-                fillcolor=f"rgba(220,35,35,{fill_alpha})",
-                hoverinfo="skip",
-                showlegend=False,
-                name="Subgroup overlap fill"
-            )
-        )
-
     if hatch_x:
         fig.add_trace(
             go.Scatter(
@@ -607,7 +591,7 @@ def add_overlap_hatching(
                 y=hatch_y,
                 mode="lines",
                 line=dict(
-                    color=f"rgba(205,20,20,{hatch_alpha})",
+                    color=f"rgba(210,35,35,{hatch_alpha})",
                     width=hatch_width
                 ),
                 hoverinfo="skip",
@@ -623,7 +607,7 @@ def add_overlap_hatching(
                 y=outline_y,
                 mode="lines",
                 line=dict(
-                    color=f"rgba(175,10,10,{outline_alpha})",
+                    color=f"rgba(190,20,20,{outline_alpha})",
                     width=outline_width,
                     dash="dot"
                 ),
@@ -1396,7 +1380,7 @@ with pc1:
 with pc2:
     colorscale = st.selectbox(
         "Sample color scale",
-        ["Viridis","Plasma", "Turbo", "Inferno", "Cividis", "RdYlBu"]
+        ["Viridis", "Plasma","Turbo", "Inferno", "Cividis", "RdYlBu","YlOrRd"]
     )
 with pc3:
     subgroup_hull_width = st.slider(
@@ -2251,7 +2235,7 @@ try:
         format=export_format.lower(),
         width=PLOT_WIDTH,
         height=PLOT_HEIGHT,
-        scale=3
+        scale=2
     )
 
     if export_format == "PNG":
