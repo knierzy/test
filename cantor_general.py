@@ -8,7 +8,7 @@ import streamlit as st
 st.set_page_config(layout="wide", page_title="Cantor Grids")
 
 st.title("Cantor Grids – Four-Parameter Compositional Visualization")
-st.caption("Build: V35 — matched Explorer/export dimensions")
+st.caption("Build: V36 — Aitchison / Log-Euclidean subgroup distance choice")
 st.caption(
     "Define four compositional parameters, create subgroup fields from parameter ranges, "
     "and optionally add sample points manually or from Excel."
@@ -721,16 +721,51 @@ def log_euclidean_distance(mu_i, mu_j):
     )
 
 
-def subgroup_reference_distance_colors(subgroup_results, colorscale, reference_name=None):
+def aitchison_distance(mu_i, mu_j, zero_replacement=0.5):
+    """
+    Aitchison distance between two four-component compositions.
+
+    Zero components are replaced by 0.5 percentage points by default, the
+    composition is re-closed, and a centered log-ratio (CLR) transform is
+    applied before calculating Euclidean distance in CLR space.
+    """
+    x = np.asarray(mu_i, dtype=float)
+    y = np.asarray(mu_j, dtype=float)
+
+    if np.any(~np.isfinite(x)) or np.any(~np.isfinite(y)):
+        return np.nan
+    if np.any(x < 0) or np.any(y < 0) or x.sum() <= 0 or y.sum() <= 0:
+        return np.nan
+
+    def clr_with_zero_replacement(comp):
+        comp = np.where(comp <= 0, float(zero_replacement), comp)
+        comp = comp / comp.sum()
+        logs = np.log(comp)
+        return logs - logs.mean()
+
+    clr_x = clr_with_zero_replacement(x)
+    clr_y = clr_with_zero_replacement(y)
+    return float(np.linalg.norm(clr_x - clr_y))
+
+
+def subgroup_reference_distance_colors(
+    subgroup_results,
+    colorscale,
+    reference_name=None,
+    distance_metric="Aitchison"
+):
     """
     For plots without sample points:
     1) calculate the mean A/B/C/D composition of every subgroup,
-    2) calculate all pairwise log-Euclidean distances using ln(x + 1),
+    2) calculate all pairwise distances using the selected metric,
     3) use either a user-selected reference subgroup or, by default,
        automatically choose the subgroup with the largest mean distance
        to all other subgroups,
-    4) color every subgroup continuously by its log-Euclidean distance
-       from that reference.
+    4) color every subgroup continuously by its distance from that reference.
+
+    Supported metrics:
+    - Aitchison (default; CLR geometry with 0.5% zero replacement)
+    - Log-Euclidean (ln(x + 1))
     """
     means, sigmas = subgroup_statistics_from_generated(subgroup_results)
     names = [sg["name"] for sg in subgroup_results if sg["name"] in means]
@@ -751,10 +786,16 @@ def subgroup_reference_distance_colors(subgroup_results, colorscale, reference_n
             if i == j:
                 pairwise[name_i][name_j] = 0.0
             elif name_j not in pairwise[name_i]:
-                d = log_euclidean_distance(
-                    means[name_i],
-                    means[name_j]
-                )
+                if distance_metric == "Aitchison":
+                    d = aitchison_distance(
+                        means[name_i],
+                        means[name_j]
+                    )
+                else:
+                    d = log_euclidean_distance(
+                        means[name_i],
+                        means[name_j]
+                    )
                 pairwise[name_i][name_j] = d
                 pairwise[name_j][name_i] = d
 
@@ -1341,8 +1382,26 @@ show_overlap_hatching = st.checkbox(
     help="Adds a subtle diagonal hatch only where subgroup fields geometrically overlap."
 )
 
-# Reference subgroup for log-Euclidean distances.
-# The default keeps the original automatic behavior.
+# Distance metric for subgroup-to-subgroup comparison.
+# Aitchison is the default because A/B/C/D are compositional percentages.
+distance_metric = st.selectbox(
+    "Subgroup distance metric",
+    ["Aitchison", "Log-Euclidean"],
+    index=0,
+    help=(
+        "Aitchison is recommended for compositional percentage data and uses CLR "
+        "geometry. Zero components are replaced by 0.5 percentage points and the "
+        "composition is re-closed before transformation. Log-Euclidean uses ln(x + 1)."
+    )
+)
+
+distance_title = (
+    "Aitchison distance"
+    if distance_metric == "Aitchison"
+    else "Log-Euclidean distance"
+)
+
+# Reference subgroup for the selected distance metric.
 available_reference_groups = [
     sg["name"] for sg in generated_subgroups if not sg["points"].empty
 ]
@@ -1350,13 +1409,13 @@ available_reference_groups = [
 reference_mode_options = ["Automatic (largest mean distance)"] + available_reference_groups
 
 selected_reference_option = st.selectbox(
-    "Log-Euclidean reference subgroup",
+    "Reference subgroup",
     reference_mode_options,
     index=0,
     help=(
-        "Automatic selects the subgroup with the largest mean log-Euclidean "
-        "distance to all other subgroups. Alternatively, choose any subgroup "
-        "as the reference for the displayed distances and color scale."
+        f"Automatic selects the subgroup with the largest mean {distance_title.lower()} "
+        "to all other subgroups. Alternatively, choose any subgroup as the reference "
+        "for the displayed distances and color scale."
     )
 )
 
@@ -1406,7 +1465,8 @@ else:
     ) = subgroup_reference_distance_colors(
         generated_subgroups,
         colorscale,
-        reference_name=selected_reference_name
+        reference_name=selected_reference_name,
+        distance_metric=distance_metric
     )
 
     summary_df = pd.DataFrame(columns=["Subgroup", "Points", "Percent"])
@@ -1630,7 +1690,7 @@ else:
 
     longest_entry_chars = max(
         [
-            len("Log-Euclidean distance"),
+            len(distance_title),
             len(
                 f"Reference: {reference_subgroup} "
                 + ("(automatic: largest mean distance)" if reference_is_automatic else "(user selected)")
@@ -1655,7 +1715,7 @@ else:
         else "user selected"
     )
     stats_legend_text = (
-        f"<span style='font-size:{title_fs}px; font-weight:bold;'>Log-Euclidean distance</span><br>"
+        f"<span style='font-size:{title_fs}px; font-weight:bold;'>{distance_title}</span><br>"
         f"<span style='font-size:{int(22 * legend_scale)}px; font-style:italic;'>"
         f"Reference: {ref_text} ({reference_note})</span><br><br>"
     )
@@ -1803,7 +1863,7 @@ if show_subgroups and generated_subgroups:
             outline_width=2.20
         )
 
-# Continuous log-Euclidean subgroup-distance colorbar when no sample points are plotted.
+# Continuous subgroup-distance colorbar when no sample points are plotted.
 if (not has_samples) and reference_subgroup is not None and subgroup_reference_distances:
     max_ref_distance = max(subgroup_reference_distances.values())
 
@@ -1844,7 +1904,7 @@ if (not has_samples) and reference_subgroup is not None and subgroup_reference_d
         y=0.5,
         xref="paper",
         yref="paper",
-        text=f"Log-Euclidean distance from {reference_subgroup}",
+        text=f"{distance_title} from {reference_subgroup}",
         textangle=-90,
         showarrow=False,
         font=dict(size=14, color="black"),
