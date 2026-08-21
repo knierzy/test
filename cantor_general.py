@@ -1804,7 +1804,9 @@ else:
     stats_legend_text = (
         f"<span style='font-size:{title_fs}px; font-weight:bold;'>{distance_title}</span><br>"
         f"<span style='font-size:{int(22 * legend_scale)}px; font-style:italic;'>"
-        f"Reference: {ref_text} ({reference_note})</span><br><br>"
+        f"Reference: {ref_text} ({reference_note})</span><br>"
+        f"<span style='font-size:{int(20 * legend_scale)}px; font-style:italic;'>"
+        "Colors indicate distance.</span><br><br>"
     )
 
     sorted_legend_subgroups = sorted(
