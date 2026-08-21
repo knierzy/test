@@ -473,7 +473,7 @@ def add_overlap_hatching(
     hatch_alpha=1.0,
     hatch_width=1.8,
     outline_alpha=1.0,
-    outline_width=2.20
+    outline_width=3.00,
     fill_alpha=0.65
 ):
     """
