@@ -1378,9 +1378,11 @@ with pc1:
     point_size = st.slider("Sample point size", 3, 40, 7, 1)
 with pc2:
     colorscale = st.selectbox(
-        "Sample color scale",
-        ["Plasma", "Viridis", "Turbo", "Inferno", "Cividis", "RdYlBu"]
-    )
+        "Color scale",
+        ["Viridis", "Plasma", "Inferno", "Magma",
+        "Cividis", "Turbo", "Blues", "YlOrRd", "RdYlBu"],
+        index=0
+)
 with pc3:
     subgroup_hull_width = st.slider(
         "Subgroup convex hull line width",
