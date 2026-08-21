@@ -1030,6 +1030,7 @@ st.header("2. Define subgroup fields")
 definition_mode = st.radio(
     "Subgroup definition mode",
     ["Manual input", "Upload Excel file"],
+    index=1,
     horizontal=True
 )
 
