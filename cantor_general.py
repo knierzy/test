@@ -483,10 +483,6 @@ def add_overlap_hatching(
     - a subtle translucent red fill,
     - dense red diagonal hatching,
     - a clearly visible dotted red boundary.
-
-    Only genuine geometric intersections of subgroup fields are highlighted.
-    Performance is kept reasonable by collecting all fills, hatch segments,
-    and outlines into three Plotly traces.
     """
     valid = [sg for sg in subgroup_results if not sg["points"].empty]
 
@@ -496,13 +492,9 @@ def add_overlap_hatching(
     }
 
     drawn_regions = set()
-
-    fill_x = []
-    fill_y = []
-    hatch_x = []
-    hatch_y = []
-    outline_x = []
-    outline_y = []
+    fill_x, fill_y = [], []
+    hatch_x, hatch_y = [], []
+    outline_x, outline_y = [], []
 
     for i in range(len(valid)):
         for j in range(i + 1, len(valid)):
@@ -534,15 +526,12 @@ def add_overlap_hatching(
                     continue
                 drawn_regions.add(region_key)
 
-                # Light red fill underneath the hatch.
                 fill_x.extend([x0, x0, x1, x1, x0, None])
                 fill_y.extend([y0, y1, y1, y0, y0, None])
 
-                # Clearly visible boundary around the true overlap rectangle.
                 outline_x.extend([x0, x0, x1, x1, x0, None])
                 outline_y.extend([y0, y1, y1, y0, y0, None])
 
-                # Dense diagonal hatch lines with positive slope.
                 k_min = y0 - x1
                 k_max = y1 - x0
                 k = k_min
@@ -1057,6 +1046,7 @@ st.header("2. Define subgroup fields")
 definition_mode = st.radio(
     "Subgroup definition mode",
     ["Manual input", "Upload Excel file"],
+    index=1,
     horizontal=True
 )
 
@@ -1431,7 +1421,7 @@ legend_scale = st.slider(
     "Statistics box size factor",
     min_value=0.5,
     max_value=1.8,
-    value=0.8,
+    value=0.6,
     step=0.05,
     help="Scales the in-plot statistics box and text. Useful when many subgroups are defined."
 )
@@ -1439,7 +1429,7 @@ legend_scale = st.slider(
 show_subgroups = st.checkbox("Show subgroup fields", value=True)
 show_subgroup_labels = st.checkbox(
     "Show subgroup labels (first two letters)",
-    value=False,
+    value=True,
     help="Places the first two letters of each subgroup name at the center of its generated field."
 )
 show_gray_grid = st.checkbox("Show gray Cantor grid", value=True)
