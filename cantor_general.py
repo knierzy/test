@@ -1392,13 +1392,13 @@ with pc3:
     )
 with pc4:
     subgroup_subfield_width = st.slider(
-        "Subfield boundary line width",
+       "Subfield boundary line width",
         min_value=0.2,
-        max_value=5.0,
-        value=1.0,
+        max_value=10.0,
+        value=3.0,
         step=0.1,
         help="Controls the thickness of the colored boundary line around each individual scattered subfield."
-    )
+   )
 
 legend_scale = st.slider(
     "Statistics box size factor",
