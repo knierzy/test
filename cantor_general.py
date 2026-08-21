@@ -469,8 +469,12 @@ def calculate_subgroup_field_overlaps(subgroup_results):
 def add_overlap_hatching(
     fig,
     subgroup_results,
-    fill_alpha=1.0,
-    outline_width=2.5
+    hatch_spacing=0.35,
+    hatch_alpha=1.0,
+    hatch_width=2.4,
+    outline_alpha=1.0,
+    outline_width=2.5,
+    fill_alpha=1.0
 ):
     """
     Highlight true pairwise subgroup overlaps as solid, bright red areas.
