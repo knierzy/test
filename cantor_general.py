@@ -721,30 +721,68 @@ def log_euclidean_distance(mu_i, mu_j):
     )
 
 
+def multiplicative_zero_replacement(comp, delta=0.5):
+    """
+    Replace zero components in a closed percentage composition multiplicatively.
+
+    Each zero receives delta percentage points. The original positive components
+    are reduced proportionally so that the total remains 100% and the ratios
+    among the originally positive components remain unchanged.
+    """
+    comp = np.asarray(comp, dtype=float)
+
+    if np.any(~np.isfinite(comp)) or np.any(comp < 0) or comp.sum() <= 0:
+        return None
+
+    comp = comp / comp.sum() * 100.0
+    zero_mask = comp <= 0
+    n_zero = int(zero_mask.sum())
+
+    if n_zero == 0:
+        return comp
+
+    delta = float(delta)
+    if not np.isfinite(delta) or delta <= 0:
+        return None
+
+    replacement_total = n_zero * delta
+    if replacement_total >= 100.0:
+        return None
+
+    positive_mask = ~zero_mask
+    positive_total = float(comp[positive_mask].sum())
+    if positive_total <= 0:
+        return None
+
+    result = comp.copy()
+    result[zero_mask] = delta
+
+    scale = (100.0 - replacement_total) / positive_total
+    result[positive_mask] = comp[positive_mask] * scale
+
+    return result
+
+
 def aitchison_distance(mu_i, mu_j, zero_replacement=0.5):
     """
-    Aitchison distance between two four-component compositions.
+    Aitchison distance between two four-component subgroup centroids.
 
-    Zero components are replaced by 0.5 percentage points by default, the
-    composition is re-closed, and a centered log-ratio (CLR) transform is
-    applied before calculating Euclidean distance in CLR space.
+    Zeros are handled by multiplicative zero replacement before the centered
+    log-ratio (CLR) transformation. The replacement value is expressed in
+    percentage points and defaults to 0.5%.
     """
-    x = np.asarray(mu_i, dtype=float)
-    y = np.asarray(mu_j, dtype=float)
+    x = multiplicative_zero_replacement(mu_i, delta=zero_replacement)
+    y = multiplicative_zero_replacement(mu_j, delta=zero_replacement)
 
-    if np.any(~np.isfinite(x)) or np.any(~np.isfinite(y)):
-        return np.nan
-    if np.any(x < 0) or np.any(y < 0) or x.sum() <= 0 or y.sum() <= 0:
+    if x is None or y is None:
         return np.nan
 
-    def clr_with_zero_replacement(comp):
-        comp = np.where(comp <= 0, float(zero_replacement), comp)
-        comp = comp / comp.sum()
+    def clr(comp):
         logs = np.log(comp)
         return logs - logs.mean()
 
-    clr_x = clr_with_zero_replacement(x)
-    clr_y = clr_with_zero_replacement(y)
+    clr_x = clr(x)
+    clr_y = clr(y)
     return float(np.linalg.norm(clr_x - clr_y))
 
 
@@ -752,7 +790,8 @@ def subgroup_reference_distance_colors(
     subgroup_results,
     colorscale,
     reference_name=None,
-    distance_metric="Aitchison"
+    distance_metric="Aitchison",
+    aitchison_zero_replacement=0.5
 ):
     """
     For plots without sample points:
@@ -789,7 +828,8 @@ def subgroup_reference_distance_colors(
                 if distance_metric == "Aitchison":
                     d = aitchison_distance(
                         means[name_i],
-                        means[name_j]
+                        means[name_j],
+                        zero_replacement=aitchison_zero_replacement
                     )
                 else:
                     d = log_euclidean_distance(
@@ -1390,10 +1430,28 @@ distance_metric = st.selectbox(
     index=0,
     help=(
         "Aitchison is recommended for compositional percentage data and uses CLR "
-        "geometry. Zero components are replaced by 0.5 percentage points and the "
-        "composition is re-closed before transformation. Log-Euclidean uses ln(x + 1)."
+        "geometry. Zero components are handled by multiplicative replacement. "
+        "Log-Euclidean uses ln(x + 1)."
     )
 )
+
+if distance_metric == "Aitchison":
+    aitchison_zero_replacement = st.number_input(
+        "Aitchison zero replacement δ (%)",
+        min_value=0.01,
+        max_value=10.0,
+        value=0.5,
+        step=0.05,
+        format="%.2f",
+        help=(
+            "Each exact zero is replaced by δ percentage points. The positive "
+            "components are reduced proportionally so that the composition remains "
+            "closed and their mutual ratios are preserved. For integer percentage "
+            "data, 0.5% is a practical default."
+        )
+    )
+else:
+    aitchison_zero_replacement = 0.5
 
 distance_title = (
     "Aitchison distance"
@@ -1466,7 +1524,8 @@ else:
         generated_subgroups,
         colorscale,
         reference_name=selected_reference_name,
-        distance_metric=distance_metric
+        distance_metric=distance_metric,
+        aitchison_zero_replacement=aitchison_zero_replacement
     )
 
     summary_df = pd.DataFrame(columns=["Subgroup", "Points", "Percent"])
