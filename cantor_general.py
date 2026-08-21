@@ -1737,14 +1737,26 @@ else:
 
     subgroup_line_px = max(square_fs * 1.10, group_fs * 1.40)
     padding_top_px = 18 * legend_scale
-    padding_bottom_px = 24 * legend_scale
-    gap_before_groups_px = 18 * legend_scale
+    padding_bottom_px = 28 * legend_scale
 
+    # The distance legend contains three header lines before the subgroup list:
+    # title, reference information, and the colour-distance note.  Count all
+    # of them explicitly so the surrounding rectangle always grows with the
+    # actual text block instead of cutting off the overlap statistics.
+    reference_fs = int(22 * legend_scale)
+    color_note_fs = int(20 * legend_scale)
+    title_line_px = title_fs * 1.35
+    reference_line_px = reference_fs * 1.45
+    color_note_line_px = color_note_fs * 1.45
+    gap_before_groups_px = 20 * legend_scale
+
+    # The overlap section starts after an intentional blank line, followed by
+    # one header line and one line per visible overlap entry.
     overlap_header_px = (24 * legend_scale) if displayed_overlaps else 0
-    overlap_line_px = (22 * legend_scale) if displayed_overlaps else 0
+    overlap_line_px = (24 * legend_scale) if displayed_overlaps else 0
     overlap_extra_lines = len(displayed_overlaps) + (1 if hidden_overlap_count > 0 else 0)
     overlap_block_px = (
-        (18 * legend_scale)
+        (22 * legend_scale)
         + overlap_header_px
         + overlap_extra_lines * overlap_line_px
         if displayed_overlaps
@@ -1753,7 +1765,9 @@ else:
 
     legend_height_px = (
         padding_top_px
-        + title_fs * 1.35
+        + title_line_px
+        + reference_line_px
+        + color_note_line_px
         + gap_before_groups_px
         + n_subgroups * subgroup_line_px
         + overlap_block_px
@@ -1788,8 +1802,10 @@ else:
         + [len(x) for x in overlap_entries]
     )
 
+    # Let the box expand horizontally with long subgroup/overlap entries as
+    # well.  The upper cap still leaves enough room for the main plot.
     legend_width = min(
-        0.62,
+        0.82,
         max(0.28, (0.10 + longest_entry_chars * 0.0080) * legend_scale)
     )
     legend_x0 = 0.015
