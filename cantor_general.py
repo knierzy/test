@@ -8,7 +8,7 @@ import streamlit as st
 st.set_page_config(layout="wide", page_title="Cantor Grids")
 
 st.title("Cantor Grids – Four-Parameter Compositional Visualization")
-st.caption("Build: V37 — stronger overlap highlighting and updated defaults")
+st.caption("Build: V36 — Aitchison / Log-Euclidean subgroup distance choice")
 st.caption(
     "Define four compositional parameters, create subgroup fields from parameter ranges, "
     "and optionally add sample points manually or from Excel."
@@ -469,23 +469,19 @@ def calculate_subgroup_field_overlaps(subgroup_results):
 def add_overlap_hatching(
     fig,
     subgroup_results,
-    hatch_spacing=0.35,
-    hatch_alpha=0.95,
-    hatch_width=2.20,
-    fill_alpha=0.20,
-    outline_alpha=1.00,
-    outline_width=3.20
+    hatch_spacing=0.65,
+    hatch_alpha=0.70,
+    hatch_width=1.60,
+    outline_alpha=0.75,
+    outline_width=2.20
 ):
     """
-    Highlight actual pairwise overlap areas very clearly.
+    Highlight actual pairwise overlap areas with a clearly visible but still
+    restrained red diagonal hatch plus a thin dashed red overlap boundary.
 
-    Overlap regions receive:
-    - a translucent red fill,
-    - dense red diagonal hatching, and
-    - a strong solid red outer boundary.
-
-    All overlap polygons, hatch segments and outlines are collected into only
-    three Plotly traces for good rendering performance.
+    Performance-optimized:
+    all hatch segments are collected into one Scatter trace and all overlap
+    outlines into a second Scatter trace, instead of creating many shapes.
     """
     valid = [sg for sg in subgroup_results if not sg["points"].empty]
 
@@ -495,8 +491,6 @@ def add_overlap_hatching(
     }
 
     drawn_regions = set()
-    fill_x = []
-    fill_y = []
     hatch_x = []
     hatch_y = []
     outline_x = []
@@ -532,15 +526,11 @@ def add_overlap_hatching(
                     continue
                 drawn_regions.add(region_key)
 
-                # Semi-transparent red fill for immediate visual recognition.
-                fill_x.extend([x0, x0, x1, x1, x0, None])
-                fill_y.extend([y0, y1, y1, y0, y0, None])
-
-                # Strong outline around the true overlap rectangle.
+                # Thin dashed outline around the true overlap rectangle.
                 outline_x.extend([x0, x0, x1, x1, x0, None])
                 outline_y.extend([y0, y1, y1, y0, y0, None])
 
-                # Dense diagonal hatch lines with positive slope.
+                # Diagonal hatch lines with positive slope.
                 k_min = y0 - x1
                 k_max = y1 - x0
                 k = k_min
@@ -594,22 +584,6 @@ def add_overlap_hatching(
 
                     k += hatch_spacing
 
-    # Draw fill first so hatching and outline remain crisp on top.
-    if fill_x:
-        fig.add_trace(
-            go.Scatter(
-                x=fill_x,
-                y=fill_y,
-                mode="lines",
-                line=dict(color="rgba(220,20,20,0)", width=0),
-                fill="toself",
-                fillcolor=f"rgba(220,20,20,{fill_alpha})",
-                hoverinfo="skip",
-                showlegend=False,
-                name="Subgroup overlap fill"
-            )
-        )
-
     if hatch_x:
         fig.add_trace(
             go.Scatter(
@@ -617,7 +591,7 @@ def add_overlap_hatching(
                 y=hatch_y,
                 mode="lines",
                 line=dict(
-                    color=f"rgba(220,20,20,{hatch_alpha})",
+                    color=f"rgba(210,35,35,{hatch_alpha})",
                     width=hatch_width
                 ),
                 hoverinfo="skip",
@@ -633,9 +607,9 @@ def add_overlap_hatching(
                 y=outline_y,
                 mode="lines",
                 line=dict(
-                    color=f"rgba(190,0,0,{outline_alpha})",
+                    color=f"rgba(190,20,20,{outline_alpha})",
                     width=outline_width,
-                    dash="solid"
+                    dash="dot"
                 ),
                 hoverinfo="skip",
                 showlegend=False,
@@ -1056,7 +1030,6 @@ st.header("2. Define subgroup fields")
 definition_mode = st.radio(
     "Subgroup definition mode",
     ["Manual input", "Upload Excel file"],
-    index=1,
     horizontal=True
 )
 
@@ -1406,8 +1379,7 @@ with pc1:
 with pc2:
     colorscale = st.selectbox(
         "Sample color scale",
-        ["Viridis", "Plasma", "Inferno", "Magma", "Cividis", "Turbo", "Blues", "YlOrRd", "RdYlBu"],
-        index=0
+        ["Plasma", "Viridis", "Turbo", "Inferno", "Cividis", "RdYlBu"]
     )
 with pc3:
     subgroup_hull_width = st.slider(
@@ -1420,19 +1392,19 @@ with pc3:
     )
 with pc4:
     subgroup_subfield_width = st.slider(
-       "Subfield boundary line width",
+        "Subfield boundary line width",
         min_value=0.2,
         max_value=10.0,
         value=3.0,
         step=0.1,
         help="Controls the thickness of the colored boundary line around each individual scattered subfield."
-   )
+    )
 
 legend_scale = st.slider(
     "Statistics box size factor",
     min_value=0.5,
     max_value=1.8,
-    value=0.6,
+    value=0.8,
     step=0.05,
     help="Scales the in-plot statistics box and text. Useful when many subgroups are defined."
 )
@@ -1440,14 +1412,14 @@ legend_scale = st.slider(
 show_subgroups = st.checkbox("Show subgroup fields", value=True)
 show_subgroup_labels = st.checkbox(
     "Show subgroup labels (first two letters)",
-    value=True,
+    value=False,
     help="Places the first two letters of each subgroup name at the center of its generated field."
 )
 show_gray_grid = st.checkbox("Show gray Cantor grid", value=True)
 show_overlap_hatching = st.checkbox(
     "Highlight subgroup overlap",
     value=True,
-    help="Highlights geometric subgroup overlap with a translucent red fill, dense diagonal hatching, and a strong red outline."
+    help="Adds a subtle diagonal hatch only where subgroup fields geometrically overlap."
 )
 
 # Distance metric for subgroup-to-subgroup comparison.
@@ -1737,26 +1709,14 @@ else:
 
     subgroup_line_px = max(square_fs * 1.10, group_fs * 1.40)
     padding_top_px = 18 * legend_scale
-    padding_bottom_px = 28 * legend_scale
+    padding_bottom_px = 24 * legend_scale
+    gap_before_groups_px = 18 * legend_scale
 
-    # The distance legend contains three header lines before the subgroup list:
-    # title, reference information, and the colour-distance note.  Count all
-    # of them explicitly so the surrounding rectangle always grows with the
-    # actual text block instead of cutting off the overlap statistics.
-    reference_fs = int(22 * legend_scale)
-    color_note_fs = int(20 * legend_scale)
-    title_line_px = title_fs * 1.35
-    reference_line_px = reference_fs * 1.45
-    color_note_line_px = color_note_fs * 1.45
-    gap_before_groups_px = 20 * legend_scale
-
-    # The overlap section starts after an intentional blank line, followed by
-    # one header line and one line per visible overlap entry.
     overlap_header_px = (24 * legend_scale) if displayed_overlaps else 0
-    overlap_line_px = (24 * legend_scale) if displayed_overlaps else 0
+    overlap_line_px = (22 * legend_scale) if displayed_overlaps else 0
     overlap_extra_lines = len(displayed_overlaps) + (1 if hidden_overlap_count > 0 else 0)
     overlap_block_px = (
-        (22 * legend_scale)
+        (18 * legend_scale)
         + overlap_header_px
         + overlap_extra_lines * overlap_line_px
         if displayed_overlaps
@@ -1765,9 +1725,7 @@ else:
 
     legend_height_px = (
         padding_top_px
-        + title_line_px
-        + reference_line_px
-        + color_note_line_px
+        + title_fs * 1.35
         + gap_before_groups_px
         + n_subgroups * subgroup_line_px
         + overlap_block_px
@@ -1802,10 +1760,8 @@ else:
         + [len(x) for x in overlap_entries]
     )
 
-    # Let the box expand horizontally with long subgroup/overlap entries as
-    # well.  The upper cap still leaves enough room for the main plot.
     legend_width = min(
-        0.82,
+        0.62,
         max(0.28, (0.10 + longest_entry_chars * 0.0080) * legend_scale)
     )
     legend_x0 = 0.015
@@ -1820,9 +1776,7 @@ else:
     stats_legend_text = (
         f"<span style='font-size:{title_fs}px; font-weight:bold;'>{distance_title}</span><br>"
         f"<span style='font-size:{int(22 * legend_scale)}px; font-style:italic;'>"
-        f"Reference: {ref_text} ({reference_note})</span><br>"
-        f"<span style='font-size:{int(20 * legend_scale)}px; font-style:italic;'>"
-        "Colors indicate distance.</span><br><br>"
+        f"Reference: {ref_text} ({reference_note})</span><br><br>"
     )
 
     sorted_legend_subgroups = sorted(
@@ -1961,12 +1915,11 @@ if show_subgroups and generated_subgroups:
         add_overlap_hatching(
             fig,
             nonempty_subgroups,
-            hatch_spacing=0.35,
-            hatch_alpha=0.95,
-            hatch_width=2.20,
-            fill_alpha=0.20,
-            outline_alpha=1.00,
-            outline_width=3.20
+            hatch_spacing=0.65,
+            hatch_alpha=0.70,
+            hatch_width=1.60,
+            outline_alpha=0.75,
+            outline_width=2.20
         )
 
 # Continuous subgroup-distance colorbar when no sample points are plotted.
@@ -2206,7 +2159,7 @@ fig.add_shape(
     x1=x_min_frame,
     y0=0,
     y1=100,
-    line=dict(color="black", width=3),
+    line=dict(color="#555555", width=0.8),
     layer="above"
 )
 
@@ -2216,7 +2169,7 @@ fig.add_shape(
     x1=x_max_frame,
     y0=100,
     y1=100,
-    line=dict(color="black", width=2),
+    line=dict(color="#555555", width=0.8),
     layer="above"
 )
 
