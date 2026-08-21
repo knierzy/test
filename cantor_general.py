@@ -1386,7 +1386,7 @@ with pc3:
         "Subgroup convex hull line width",
         min_value=0.2,
         max_value=5.0,
-        value=3,
+        value=3.0,
         step=0.1,
         help="Controls the thickness of the dashed outer convex-hull line around each subgroup."
     )
