@@ -469,17 +469,20 @@ def calculate_subgroup_field_overlaps(subgroup_results):
 def add_overlap_hatching(
     fig,
     subgroup_results,
-    hatch_spacing=0.35,
-    hatch_alpha=1.0,
-    hatch_width=2.4,
+    hatch_spacing=0.65,      # kept for compatibility with existing call
+    hatch_alpha=0.70,        # kept for compatibility with existing call
+    hatch_width=1.60,        # kept for compatibility with existing call
     outline_alpha=1.0,
-    outline_width=2.5,
+    outline_width=2.8,
     fill_alpha=1.0
 ):
     """
-    Highlight true pairwise subgroup overlaps as solid, bright red areas.
-    The overlap itself is filled fully opaque red so it stands out clearly
-    from the subgroup colors and the gray Cantor grid.
+    Highlight true pairwise subgroup overlaps as connected, solid bright-red zones.
+
+    Overlap is still calculated slice-by-slice from the real subgroup rectangles.
+    Consecutive overlapping AB slices belonging to the same subgroup pair are then
+    visually joined into one continuous polygon. This avoids the previous effect
+    where the overlap appeared only as a series of narrow red vertical strips.
     """
     valid = [sg for sg in subgroup_results if not sg["points"].empty]
 
@@ -488,7 +491,8 @@ def add_overlap_hatching(
         for sg in valid
     }
 
-    drawn_regions = set()
+    # Collect actual overlap rectangles separately for every subgroup pair.
+    pair_regions = {}
 
     for i in range(len(valid)):
         for j in range(i + 1, len(valid)):
@@ -497,7 +501,9 @@ def add_overlap_hatching(
 
             rects_a = rect_maps[name_a]
             rects_b = rect_maps[name_b]
-            common_abs = set(rects_a).intersection(rects_b)
+            common_abs = sorted(set(rects_a).intersection(rects_b))
+
+            regions = []
 
             for ab in common_abs:
                 ax0, ax1, ay0, ay1 = rects_a[ab]
@@ -511,31 +517,81 @@ def add_overlap_hatching(
                 if x1 <= x0 or y1 <= y0:
                     continue
 
-                region_key = (
-                    int(ab),
-                    round(x0, 4), round(x1, 4),
-                    round(y0, 4), round(y1, 4)
-                )
-                if region_key in drawn_regions:
-                    continue
-                drawn_regions.add(region_key)
+                regions.append({
+                    "ab": int(ab),
+                    "x0": float(x0),
+                    "x1": float(x1),
+                    "y0": float(y0),
+                    "y1": float(y1),
+                })
 
-                fig.add_trace(
-                    go.Scatter(
-                        x=[x0, x0, x1, x1, x0],
-                        y=[y0, y1, y1, y0, y0],
-                        mode="lines",
-                        line=dict(
-                            color="rgb(180,0,0)",
-                            width=outline_width
-                        ),
-                        fill="toself",
-                        fillcolor=f"rgba(255,0,0,{fill_alpha})",
-                        hoverinfo="skip",
-                        showlegend=False,
-                        name="Subgroup overlap"
-                    )
+            if regions:
+                pair_regions[(name_a, name_b)] = regions
+
+    # Draw each run of consecutive AB slices as one connected polygon.
+    for (name_a, name_b), regions in pair_regions.items():
+        regions = sorted(regions, key=lambda r: r["ab"])
+
+        runs = []
+        current_run = []
+
+        for region in regions:
+            if not current_run:
+                current_run = [region]
+                continue
+
+            # Consecutive Cantor slices differ by exactly one AB unit.
+            if region["ab"] == current_run[-1]["ab"] + 1:
+                current_run.append(region)
+            else:
+                runs.append(current_run)
+                current_run = [region]
+
+        if current_run:
+            runs.append(current_run)
+
+        for run in runs:
+            # Sort by visual x-position, not AB number, so polygon points are ordered.
+            run = sorted(run, key=lambda r: (r["x0"] + r["x1"]) / 2.0)
+
+            if len(run) == 1:
+                r = run[0]
+                poly_x = [r["x0"], r["x1"], r["x1"], r["x0"], r["x0"]]
+                poly_y = [r["y0"], r["y0"], r["y1"], r["y1"], r["y0"]]
+            else:
+                # Lower envelope from left to right.
+                lower_x = []
+                lower_y = []
+                for r in run:
+                    lower_x.extend([r["x0"], r["x1"]])
+                    lower_y.extend([r["y0"], r["y0"]])
+
+                # Upper envelope from right to left.
+                upper_x = []
+                upper_y = []
+                for r in reversed(run):
+                    upper_x.extend([r["x1"], r["x0"]])
+                    upper_y.extend([r["y1"], r["y1"]])
+
+                poly_x = lower_x + upper_x + [lower_x[0]]
+                poly_y = lower_y + upper_y + [lower_y[0]]
+
+            fig.add_trace(
+                go.Scatter(
+                    x=poly_x,
+                    y=poly_y,
+                    mode="lines",
+                    line=dict(
+                        color=f"rgba(170,0,0,{outline_alpha})",
+                        width=outline_width
+                    ),
+                    fill="toself",
+                    fillcolor=f"rgba(255,0,0,{fill_alpha})",
+                    hoverinfo="skip",
+                    showlegend=False,
+                    name=f"Overlap: {name_a} – {name_b}"
                 )
+            )
 
 
 def dynamic_axis_font_size(text, base_size, min_size):
