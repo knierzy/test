@@ -2,15 +2,16 @@ import itertools
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
+from plotly.colors import sample_colorscale
 import streamlit as st
 
 st.set_page_config(layout="wide", page_title="Cantor Grids")
 
 st.title("Cantor Grids – Four-Parameter Compositional Visualization")
-st.caption("Build: V19 — thinner outer marker outline")
+st.caption("Build: V36 — Aitchison / Log-Euclidean subgroup distance choice")
 st.caption(
     "Define four compositional parameters, create subgroup fields from parameter ranges, "
-    "and upload your own four-parameter dataset."
+    "and optionally add sample points manually or from Excel."
 )
 
 # ============================================================
@@ -49,16 +50,9 @@ X_LABELS = {
 }
 
 SUBGROUP_COLORS = [
-    "rgba(31,119,180,0.85)",
-    "rgba(255,127,14,0.85)",
-    "rgba(44,160,44,0.85)",
-    "rgba(214,39,40,0.85)",
-    "rgba(148,103,189,0.85)",
-    "rgba(140,86,75,0.85)",
-    "rgba(227,119,194,0.85)",
-    "rgba(127,127,127,0.85)",
-    "rgba(188,189,34,0.85)",
-    "rgba(23,190,207,0.85)"
+    "#4E79A7", "#F28E2B", "#E15759", "#76B7B2", "#59A14F",
+    "#EDC948", "#B07AA1", "#FF9DA7", "#9C755F", "#BAB0AC",
+    "#1F77B4", "#FF7F0E", "#2CA02C", "#D62728", "#9467BD",
 ]
 
 
@@ -211,12 +205,41 @@ def convex_hull_2d(points):
     return lower[:-1] + upper[:-1]
 
 
-def rgba_with_alpha(rgba, alpha):
-    parts = rgba.replace("rgba(", "").replace(")", "").split(",")
-    return f"rgba({parts[0]},{parts[1]},{parts[2]},{alpha})"
+def rgba_with_alpha(color, alpha):
+    """
+    Return an rgba(...) string with the requested alpha.
+
+    Supports both:
+    - rgba(r,g,b,a)
+    - rgb(r,g,b)
+    - hexadecimal colors such as #4E79A7
+    """
+    color = str(color).strip()
+
+    if color.startswith("#"):
+        hex_color = color.lstrip("#")
+        if len(hex_color) == 3:
+            hex_color = "".join(ch * 2 for ch in hex_color)
+        if len(hex_color) != 6:
+            raise ValueError(f"Unsupported hex color: {color}")
+
+        r = int(hex_color[0:2], 16)
+        g = int(hex_color[2:4], 16)
+        b = int(hex_color[4:6], 16)
+        return f"rgba({r},{g},{b},{alpha})"
+
+    if color.startswith("rgba("):
+        parts = color.replace("rgba(", "").replace(")", "").split(",")
+        return f"rgba({parts[0].strip()},{parts[1].strip()},{parts[2].strip()},{alpha})"
+
+    if color.startswith("rgb("):
+        parts = color.replace("rgb(", "").replace(")", "").split(",")
+        return f"rgba({parts[0].strip()},{parts[1].strip()},{parts[2].strip()},{alpha})"
+
+    raise ValueError(f"Unsupported color format: {color}")
 
 
-def add_subgroup_fields(fig, subgroup_results):
+def add_subgroup_fields(fig, subgroup_results, hull_width=1.0, subfield_width=1.0, color_map=None):
     """
     Draw subgroup fields as colored rectangular outlines only.
 
@@ -229,8 +252,15 @@ def add_subgroup_fields(fig, subgroup_results):
         if pts.empty:
             continue
 
-        color = SUBGROUP_COLORS[idx % len(SUBGROUP_COLORS)]
-        fill = rgba_with_alpha(color, 0.40)
+        color = (color_map or {}).get(sg["name"], SUBGROUP_COLORS[idx % len(SUBGROUP_COLORS)])
+
+        # Softer garnet-style subgroup appearance:
+        # subtle fill, moderately transparent subfield outline,
+        # and an even softer dashed outer hull.
+        fill = rgba_with_alpha(color, 0.12)
+        subfield_line_color = rgba_with_alpha(color, 0.70)
+        hull_line_color = rgba_with_alpha(color, 0.60)
+
         first_trace = True
 
         for ab, group in pts.groupby("AB"):
@@ -239,13 +269,27 @@ def add_subgroup_fields(fig, subgroup_results):
             y_min = float(group["y"].min()) - 0.45
             y_max = float(group["y"].max()) + 0.45
 
+            # Clip subgroup rectangle to the valid Cantor-grid slice
+            row = int(99 - ab)
+            row_start, height, _ = RECTANGLES[row]
+
+            valid_x_min = float(row_start)
+            valid_x_max = float(row_start + height)
+            valid_y_min = 0.0
+            valid_y_max = float(100 - ab)
+
+            x_min = max(x_min, valid_x_min)
+            x_max = min(x_max, valid_x_max)
+            y_min = max(y_min, valid_y_min)
+            y_max = min(y_max, valid_y_max)
+
             # Colored rectangular subfield, matching the garnet-style display.
             fig.add_trace(
                 go.Scatter(
                     x=[x_min, x_min, x_max, x_max, x_min],
                     y=[y_min, y_max, y_max, y_min, y_min],
                     mode="lines",
-                    line=dict(color=color, width=1.5),
+                    line=dict(color=subfield_line_color, width=subfield_width),
                     fill="toself",
                     fillcolor=fill,
                     name=sg["name"],
@@ -264,6 +308,362 @@ def add_subgroup_fields(fig, subgroup_results):
             )
             first_trace = False
 
+        # Thin outer boundary around the complete subgroup:
+        # convex hull of all generated/scattered subfield positions.
+        hull = convex_hull_2d(pts[["x", "y"]].to_numpy())
+        if len(hull) >= 3:
+            hull_x = [p[0] for p in hull] + [hull[0][0]]
+            hull_y = [p[1] for p in hull] + [hull[0][1]]
+            fig.add_trace(
+                go.Scatter(
+                    x=hull_x,
+                    y=hull_y,
+                    mode="lines",
+                    line=dict(color=hull_line_color, width=hull_width, dash="dash"),
+                    fill=None,
+                    hoverinfo="skip",
+                    legendgroup=sg["name"],
+                    showlegend=False
+                )
+            )
+        elif len(hull) == 2:
+            fig.add_trace(
+                go.Scatter(
+                    x=[hull[0][0], hull[1][0]],
+                    y=[hull[0][1], hull[1][1]],
+                    mode="lines",
+                    line=dict(color=hull_line_color, width=hull_width, dash="dash"),
+                    hoverinfo="skip",
+                    legendgroup=sg["name"],
+                    showlegend=False
+                )
+            )
+
+
+def subgroup_rectangles_by_ab(sg):
+    """
+    Return the visible rectangular subgroup field for each AB slice.
+
+    The geometry is calculated exactly like in add_subgroup_fields(), including
+    the +/- 0.45 padding and clipping to the valid Cantor-grid slice.
+    """
+    pts = sg["points"]
+    rectangles = {}
+
+    if pts.empty:
+        return rectangles
+
+    for ab, group in pts.groupby("AB"):
+        x_min = float(group["x"].min()) - 0.45
+        x_max = float(group["x"].max()) + 0.45
+        y_min = float(group["y"].min()) - 0.45
+        y_max = float(group["y"].max()) + 0.45
+
+        row = int(99 - ab)
+        row_start, height, _ = RECTANGLES[row]
+
+        valid_x_min = float(row_start)
+        valid_x_max = float(row_start + height)
+        valid_y_min = 0.0
+        valid_y_max = float(100 - ab)
+
+        x_min = max(x_min, valid_x_min)
+        x_max = min(x_max, valid_x_max)
+        y_min = max(y_min, valid_y_min)
+        y_max = min(y_max, valid_y_max)
+
+        if x_max > x_min and y_max > y_min:
+            rectangles[int(ab)] = (x_min, x_max, y_min, y_max)
+
+    return rectangles
+
+
+def calculate_subgroup_field_overlaps(subgroup_results):
+    """
+    Calculate actual geometric overlap of the visible subgroup fields.
+
+    Pairwise and three-way intersections are evaluated. For every overlapping
+    combination, the shared intersection area is expressed separately as a
+    percentage of EACH participating subgroup field:
+
+        overlap of A = intersection(A,B,...) / area(A) * 100
+
+    Thus asymmetric overlap is preserved. Example:
+        A–B: A 30% | B 60%
+
+    For a three-way overlap:
+        A–B–C: A 20% | B 35% | C 55%
+    """
+    valid = [sg for sg in subgroup_results if not sg["points"].empty]
+
+    rect_maps = {
+        sg["name"]: subgroup_rectangles_by_ab(sg)
+        for sg in valid
+    }
+
+    total_areas = {}
+    for sg in valid:
+        name = sg["name"]
+        total_areas[name] = sum(
+            (x_max - x_min) * (y_max - y_min)
+            for x_min, x_max, y_min, y_max in rect_maps[name].values()
+        )
+
+    overlaps = []
+
+    # Evaluate pairwise and three-way overlaps.
+    max_order = min(3, len(valid))
+
+    for order in range(2, max_order + 1):
+        for combo in itertools.combinations(valid, order):
+            names = [sg["name"] for sg in combo]
+            maps = [rect_maps[name] for name in names]
+
+            common_abs = set(maps[0].keys())
+            for rect_map in maps[1:]:
+                common_abs &= set(rect_map.keys())
+
+            intersection_area = 0.0
+
+            for ab in common_abs:
+                rects = [rect_map[ab] for rect_map in maps]
+
+                overlap_x = max(
+                    0.0,
+                    min(r[1] for r in rects) - max(r[0] for r in rects)
+                )
+                overlap_y = max(
+                    0.0,
+                    min(r[3] for r in rects) - max(r[2] for r in rects)
+                )
+
+                intersection_area += overlap_x * overlap_y
+
+            if intersection_area <= 0:
+                continue
+
+            percentages = {
+                name: (
+                    intersection_area / total_areas[name] * 100.0
+                    if total_areas[name] > 0 else 0.0
+                )
+                for name in names
+            }
+
+            overlaps.append({
+                "Names": names,
+                "Order": order,
+                "Intersection_area": intersection_area,
+                "Percentages": percentages,
+                # Sorting score: strongest affected participating subgroup.
+                "Max_percent": max(percentages.values()),
+            })
+
+    return sorted(
+        overlaps,
+        key=lambda row: (row["Order"], row["Max_percent"]),
+        reverse=True
+    )
+
+
+def add_overlap_hatching(
+    fig,
+    subgroup_results,
+    hatch_spacing=0.65,
+    hatch_alpha=0.70,
+    hatch_width=1.60,
+    outline_alpha=0.75,
+    outline_width=2.20
+):
+    """
+    Highlight actual pairwise overlap areas with a clearly visible but still
+    restrained red diagonal hatch plus a thin dashed red overlap boundary.
+
+    Performance-optimized:
+    all hatch segments are collected into one Scatter trace and all overlap
+    outlines into a second Scatter trace, instead of creating many shapes.
+    """
+    valid = [sg for sg in subgroup_results if not sg["points"].empty]
+
+    rect_maps = {
+        sg["name"]: subgroup_rectangles_by_ab(sg)
+        for sg in valid
+    }
+
+    drawn_regions = set()
+    hatch_x = []
+    hatch_y = []
+    outline_x = []
+    outline_y = []
+
+    for i in range(len(valid)):
+        for j in range(i + 1, len(valid)):
+            name_a = valid[i]["name"]
+            name_b = valid[j]["name"]
+
+            rects_a = rect_maps[name_a]
+            rects_b = rect_maps[name_b]
+            common_abs = set(rects_a).intersection(rects_b)
+
+            for ab in common_abs:
+                ax0, ax1, ay0, ay1 = rects_a[ab]
+                bx0, bx1, by0, by1 = rects_b[ab]
+
+                x0 = max(ax0, bx0)
+                x1 = min(ax1, bx1)
+                y0 = max(ay0, by0)
+                y1 = min(ay1, by1)
+
+                if x1 <= x0 or y1 <= y0:
+                    continue
+
+                region_key = (
+                    int(ab),
+                    round(x0, 4), round(x1, 4),
+                    round(y0, 4), round(y1, 4)
+                )
+                if region_key in drawn_regions:
+                    continue
+                drawn_regions.add(region_key)
+
+                # Thin dashed outline around the true overlap rectangle.
+                outline_x.extend([x0, x0, x1, x1, x0, None])
+                outline_y.extend([y0, y1, y1, y0, y0, None])
+
+                # Diagonal hatch lines with positive slope.
+                k_min = y0 - x1
+                k_max = y1 - x0
+                k = k_min
+
+                while k <= k_max + 1e-9:
+                    pts = []
+
+                    y_at_x0 = x0 + k
+                    if y0 <= y_at_x0 <= y1:
+                        pts.append((x0, y_at_x0))
+
+                    y_at_x1 = x1 + k
+                    if y0 <= y_at_x1 <= y1:
+                        pts.append((x1, y_at_x1))
+
+                    x_at_y0 = y0 - k
+                    if x0 <= x_at_y0 <= x1:
+                        pts.append((x_at_y0, y0))
+
+                    x_at_y1 = y1 - k
+                    if x0 <= x_at_y1 <= x1:
+                        pts.append((x_at_y1, y1))
+
+                    unique = []
+                    for p in pts:
+                        if not any(
+                            abs(p[0] - q[0]) < 1e-9 and
+                            abs(p[1] - q[1]) < 1e-9
+                            for q in unique
+                        ):
+                            unique.append(p)
+
+                    if len(unique) >= 2:
+                        best_pair = None
+                        best_d2 = -1.0
+
+                        for a in range(len(unique)):
+                            for b in range(a + 1, len(unique)):
+                                dx = unique[a][0] - unique[b][0]
+                                dy = unique[a][1] - unique[b][1]
+                                d2 = dx * dx + dy * dy
+
+                                if d2 > best_d2:
+                                    best_d2 = d2
+                                    best_pair = (unique[a], unique[b])
+
+                        if best_pair is not None:
+                            (sx, sy), (ex, ey) = best_pair
+                            hatch_x.extend([sx, ex, None])
+                            hatch_y.extend([sy, ey, None])
+
+                    k += hatch_spacing
+
+    if hatch_x:
+        fig.add_trace(
+            go.Scatter(
+                x=hatch_x,
+                y=hatch_y,
+                mode="lines",
+                line=dict(
+                    color=f"rgba(210,35,35,{hatch_alpha})",
+                    width=hatch_width
+                ),
+                hoverinfo="skip",
+                showlegend=False,
+                name="Subgroup overlap hatching"
+            )
+        )
+
+    if outline_x:
+        fig.add_trace(
+            go.Scatter(
+                x=outline_x,
+                y=outline_y,
+                mode="lines",
+                line=dict(
+                    color=f"rgba(190,20,20,{outline_alpha})",
+                    width=outline_width,
+                    dash="dot"
+                ),
+                hoverinfo="skip",
+                showlegend=False,
+                name="Subgroup overlap boundary"
+            )
+        )
+
+
+def dynamic_axis_font_size(text, base_size, min_size):
+    """
+    Scale an axis-title font according to the visible title length.
+    The title always remains on a single line; only the font size changes.
+    """
+    n = len(str(text))
+
+    if n <= 30:
+        return base_size
+    elif n <= 45:
+        return max(min_size, int(base_size * 0.88))
+    elif n <= 60:
+        return max(min_size, int(base_size * 0.75))
+    elif n <= 80:
+        return max(min_size, int(base_size * 0.62))
+    elif n <= 100:
+        return max(min_size, int(base_size * 0.52))
+    else:
+        return min_size
+
+
+def build_dynamic_axis_titles(labels):
+    """
+    Build x/y titles from the current parameter names.
+
+    Both titles remain on a single line. Long parameter names are handled
+    automatically by reducing the corresponding axis-title font size.
+    """
+    x_title = f"Sum of {labels[0]} (%) + {labels[1]} (%)"
+    y_title = (
+        f"{labels[2]} (%) /// {labels[3]} (%) = "
+        f"grid height − {labels[2]} (%)"
+    )
+
+    x_size = dynamic_axis_font_size(
+        x_title,
+        base_size=35,
+        min_size=14
+    )
+    y_size = dynamic_axis_font_size(
+        y_title,
+        base_size=28,
+        min_size=14
+    )
+
+    return x_title, y_title, x_size, y_size
 
 
 def subgroup_statistics_from_generated(subgroup_results):
@@ -300,6 +700,187 @@ def subgroup_statistics_from_generated(subgroup_results):
         sigmas[sg["name"]] = sigma
 
     return means, sigmas
+
+
+def log_euclidean_distance(mu_i, mu_j):
+    """
+    Log-Euclidean distance between two four-component subgroup centroids.
+
+    Each component is transformed with ln(x + 1), so zeros are allowed:
+        d = sqrt(sum((ln(mu_i + 1) - ln(mu_j + 1))^2))
+    """
+    x = np.asarray(mu_i, dtype=float)
+    y = np.asarray(mu_j, dtype=float)
+
+    return float(
+        np.sqrt(
+            np.sum(
+                (np.log1p(x) - np.log1p(y)) ** 2
+            )
+        )
+    )
+
+
+def multiplicative_zero_replacement(comp, delta=0.5):
+    """
+    Replace zero components in a closed percentage composition multiplicatively.
+
+    Each zero receives delta percentage points. The original positive components
+    are reduced proportionally so that the total remains 100% and the ratios
+    among the originally positive components remain unchanged.
+    """
+    comp = np.asarray(comp, dtype=float)
+
+    if np.any(~np.isfinite(comp)) or np.any(comp < 0) or comp.sum() <= 0:
+        return None
+
+    comp = comp / comp.sum() * 100.0
+    zero_mask = comp <= 0
+    n_zero = int(zero_mask.sum())
+
+    if n_zero == 0:
+        return comp
+
+    delta = float(delta)
+    if not np.isfinite(delta) or delta <= 0:
+        return None
+
+    replacement_total = n_zero * delta
+    if replacement_total >= 100.0:
+        return None
+
+    positive_mask = ~zero_mask
+    positive_total = float(comp[positive_mask].sum())
+    if positive_total <= 0:
+        return None
+
+    result = comp.copy()
+    result[zero_mask] = delta
+
+    scale = (100.0 - replacement_total) / positive_total
+    result[positive_mask] = comp[positive_mask] * scale
+
+    return result
+
+
+def aitchison_distance(mu_i, mu_j, zero_replacement=0.5):
+    """
+    Aitchison distance between two four-component subgroup centroids.
+
+    Zeros are handled by multiplicative zero replacement before the centered
+    log-ratio (CLR) transformation. The replacement value is expressed in
+    percentage points and defaults to 0.5%.
+    """
+    x = multiplicative_zero_replacement(mu_i, delta=zero_replacement)
+    y = multiplicative_zero_replacement(mu_j, delta=zero_replacement)
+
+    if x is None or y is None:
+        return np.nan
+
+    def clr(comp):
+        logs = np.log(comp)
+        return logs - logs.mean()
+
+    clr_x = clr(x)
+    clr_y = clr(y)
+    return float(np.linalg.norm(clr_x - clr_y))
+
+
+def subgroup_reference_distance_colors(
+    subgroup_results,
+    colorscale,
+    reference_name=None,
+    distance_metric="Aitchison",
+    aitchison_zero_replacement=0.5
+):
+    """
+    For plots without sample points:
+    1) calculate the mean A/B/C/D composition of every subgroup,
+    2) calculate all pairwise distances using the selected metric,
+    3) use either a user-selected reference subgroup or, by default,
+       automatically choose the subgroup with the largest mean distance
+       to all other subgroups,
+    4) color every subgroup continuously by its distance from that reference.
+
+    Supported metrics:
+    - Aitchison (default; CLR geometry with 0.5% zero replacement)
+    - Log-Euclidean (ln(x + 1))
+    """
+    means, sigmas = subgroup_statistics_from_generated(subgroup_results)
+    names = [sg["name"] for sg in subgroup_results if sg["name"] in means]
+
+    if not names:
+        return None, {}, {}, means, sigmas
+
+    if len(names) == 1:
+        ref_name = names[0]
+        distances = {ref_name: 0.0}
+        color_map = {ref_name: sample_colorscale(colorscale, [0.0])[0]}
+        return ref_name, distances, color_map, means, sigmas
+
+    pairwise = {name: {} for name in names}
+
+    for i, name_i in enumerate(names):
+        for j, name_j in enumerate(names):
+            if i == j:
+                pairwise[name_i][name_j] = 0.0
+            elif name_j not in pairwise[name_i]:
+                if distance_metric == "Aitchison":
+                    d = aitchison_distance(
+                        means[name_i],
+                        means[name_j],
+                        zero_replacement=aitchison_zero_replacement
+                    )
+                else:
+                    d = log_euclidean_distance(
+                        means[name_i],
+                        means[name_j]
+                    )
+                pairwise[name_i][name_j] = d
+                pairwise[name_j][name_i] = d
+
+    mean_distance = {
+        name: float(
+            np.mean(
+                [d for other, d in pairwise[name].items() if other != name]
+            )
+        )
+        for name in names
+    }
+
+    # Default: most compositionally distinct subgroup.
+    automatic_ref_name = max(mean_distance, key=mean_distance.get)
+
+    # User selection overrides the automatic reference when valid.
+    if reference_name in names:
+        ref_name = reference_name
+    else:
+        ref_name = automatic_ref_name
+
+    distances = {
+        name: float(pairwise[ref_name][name])
+        for name in names
+    }
+
+    max_distance = max(distances.values()) if distances else 0.0
+
+    if max_distance > 0:
+        normalized = {
+            name: d / max_distance
+            for name, d in distances.items()
+        }
+    else:
+        normalized = {name: 0.0 for name in names}
+
+    color_map = {
+        name: sample_colorscale(
+            colorscale,
+            [normalized[name]]
+        )[0]
+        for name in names
+    }
+
+    return ref_name, distances, color_map, means, sigmas
 
 
 def classify_diagonal_mahalanobis(df_input, subgroup_results):
@@ -628,7 +1209,7 @@ The letters A–D refer to the parameter names defined above.
                     ]
 
                     st.success(f"{len(subgroup_defs)} subgroup(s) loaded.")
-                    st.dataframe(preview, use_container_width=True)
+                    st.dataframe(preview, use_container_width=False)
 
                     for row_no, name, sum_min, sum_max, range_error in invalid_rows:
                         if range_error:
@@ -674,7 +1255,7 @@ if generated_subgroups:
         for sg in generated_subgroups
     ])
 
-    st.dataframe(summary, use_container_width=True)
+    st.dataframe(summary, use_container_width=False)
 
     empty = [sg["name"] for sg in generated_subgroups if sg["points"].empty]
 
@@ -687,13 +1268,82 @@ else:
     st.info("Define at least one valid subgroup field above.")
 
 # ============================================================
-# 4. Upload
+# 4. Optional sample points
 # ============================================================
 
-st.header("4. Upload dataset")
+st.header("4. Optional sample points")
 
-st.markdown(
-    f"""
+sample_mode = st.radio(
+    "Sample point input",
+    ["No sample points", "Manual input", "Upload Excel file"],
+    horizontal=True,
+    help=(
+        "Sample points are optional. Choose 'No sample points' to display only "
+        "the Cantor grid and subgroup fields."
+    )
+)
+
+df = None
+
+if sample_mode == "Manual input":
+    st.caption(
+        "Enter one four-parameter composition. Values are automatically normalized "
+        "to 100% using the Largest Remainder Method."
+    )
+
+    m1, m2, m3, m4, m5 = st.columns([1, 1, 1, 1, 2])
+
+    with m1:
+        manual_a = st.number_input(
+            labels[0], min_value=0.0, value=25.0, step=1.0, key="manual_point_a"
+        )
+    with m2:
+        manual_b = st.number_input(
+            labels[1], min_value=0.0, value=25.0, step=1.0, key="manual_point_b"
+        )
+    with m3:
+        manual_c = st.number_input(
+            labels[2], min_value=0.0, value=25.0, step=1.0, key="manual_point_c"
+        )
+    with m4:
+        manual_d = st.number_input(
+            labels[3], min_value=0.0, value=25.0, step=1.0, key="manual_point_d"
+        )
+    with m5:
+        manual_locality = st.text_input(
+            "Locality / sample name", "Manual sample", key="manual_point_locality"
+        )
+
+    try:
+        manual_norm = normalize_to_100_lrm(
+            [manual_a, manual_b, manual_c, manual_d]
+        )
+        mx, my = calculate_final_position(*manual_norm)
+
+        df = pd.DataFrame([{
+            "A": int(manual_norm[0]),
+            "B": int(manual_norm[1]),
+            "C": int(manual_norm[2]),
+            "D": int(manual_norm[3]),
+            "Locality": manual_locality.strip() or "Manual sample",
+            "x": mx,
+            "y": my,
+        }])
+
+        st.caption(
+            "Normalized composition: "
+            f"{labels[0]}={manual_norm[0]}%, "
+            f"{labels[1]}={manual_norm[1]}%, "
+            f"{labels[2]}={manual_norm[2]}%, "
+            f"{labels[3]}={manual_norm[3]}%."
+        )
+    except Exception as exc:
+        st.error(str(exc))
+        df = None
+
+elif sample_mode == "Upload Excel file":
+    st.markdown(
+        f"""
 Excel columns can be either:
 
 **A, B, C, D, Locality**
@@ -702,10 +1352,20 @@ or:
 
 **{labels[0]}, {labels[1]}, {labels[2]}, {labels[3]}, Locality**
 """
-)
+    )
 
-uploaded_file = st.file_uploader("Upload Excel file (.xlsx)", type=["xlsx"])
+    uploaded_file = st.file_uploader(
+        "Upload sample dataset (.xlsx)",
+        type=["xlsx"],
+        key="sample_dataset_uploader"
+    )
 
+    if uploaded_file is not None:
+        try:
+            df = read_uploaded_dataset(uploaded_file, labels)
+        except Exception as exc:
+            st.error(str(exc))
+            df = None
 
 # ============================================================
 # 5. Plot settings
@@ -713,7 +1373,7 @@ uploaded_file = st.file_uploader("Upload Excel file (.xlsx)", type=["xlsx"])
 
 st.header("5. Plot settings")
 
-pc1, pc2 = st.columns(2)
+pc1, pc2, pc3, pc4 = st.columns(4)
 with pc1:
     point_size = st.slider("Sample point size", 3, 40, 7, 1)
 with pc2:
@@ -721,54 +1381,172 @@ with pc2:
         "Sample color scale",
         ["Plasma", "Viridis", "Turbo", "Inferno", "Cividis", "RdYlBu"]
     )
+with pc3:
+    subgroup_hull_width = st.slider(
+        "Subgroup convex hull line width",
+        min_value=0.2,
+        max_value=5.0,
+        value=3.0,
+        step=0.1,
+        help="Controls the thickness of the dashed outer convex-hull line around each subgroup."
+    )
+with pc4:
+    subgroup_subfield_width = st.slider(
+        "Subfield boundary line width",
+        min_value=0.2,
+        max_value=10.0,
+        value=3.0,
+        step=0.1,
+        help="Controls the thickness of the colored boundary line around each individual scattered subfield."
+    )
 
 legend_scale = st.slider(
     "Statistics box size factor",
-    min_value=0.7,
+    min_value=0.5,
     max_value=1.8,
-    value=1.0,
+    value=0.8,
     step=0.05,
     help="Scales the in-plot statistics box and text. Useful when many subgroups are defined."
 )
 
 show_subgroups = st.checkbox("Show subgroup fields", value=True)
+show_subgroup_labels = st.checkbox(
+    "Show subgroup labels (first two letters)",
+    value=False,
+    help="Places the first two letters of each subgroup name at the center of its generated field."
+)
 show_gray_grid = st.checkbox("Show gray Cantor grid", value=True)
+show_overlap_hatching = st.checkbox(
+    "Highlight subgroup overlap",
+    value=True,
+    help="Adds a subtle diagonal hatch only where subgroup fields geometrically overlap."
+)
+
+# Distance metric for subgroup-to-subgroup comparison.
+# Aitchison is the default because A/B/C/D are compositional percentages.
+distance_metric = st.selectbox(
+    "Subgroup distance metric",
+    ["Aitchison", "Log-Euclidean"],
+    index=0,
+    help=(
+        "Aitchison is recommended for compositional percentage data and uses CLR "
+        "geometry. Zero components are handled by multiplicative replacement. "
+        "Log-Euclidean uses ln(x + 1)."
+    )
+)
+
+if distance_metric == "Aitchison":
+    aitchison_zero_replacement = st.number_input(
+        "Aitchison zero replacement δ (%)",
+        min_value=0.01,
+        max_value=10.0,
+        value=0.5,
+        step=0.05,
+        format="%.2f",
+        help=(
+            "Each exact zero is replaced by δ percentage points. The positive "
+            "components are reduced proportionally so that the composition remains "
+            "closed and their mutual ratios are preserved. For integer percentage "
+            "data, 0.5% is a practical default."
+        )
+    )
+else:
+    aitchison_zero_replacement = 0.5
+
+distance_title = (
+    "Aitchison distance"
+    if distance_metric == "Aitchison"
+    else "Log-Euclidean distance"
+)
+
+# Reference subgroup for the selected distance metric.
+available_reference_groups = [
+    sg["name"] for sg in generated_subgroups if not sg["points"].empty
+]
+
+reference_mode_options = ["Automatic (largest mean distance)"] + available_reference_groups
+
+selected_reference_option = st.selectbox(
+    "Reference subgroup",
+    reference_mode_options,
+    index=0,
+    help=(
+        f"Automatic selects the subgroup with the largest mean {distance_title.lower()} "
+        "to all other subgroups. Alternatively, choose any subgroup as the reference "
+        "for the displayed distances and color scale."
+    )
+)
+
+selected_reference_name = (
+    None
+    if selected_reference_option == "Automatic (largest mean distance)"
+    else selected_reference_option
+)
 
 
 # ============================================================
 # 6. Plot
 # ============================================================
 
-if uploaded_file is not None:
-    try:
-        df = read_uploaded_dataset(uploaded_file, labels)
-    except Exception as exc:
-        st.error(str(exc))
-        st.stop()
+# Sample-based classification is only calculated when sample points are present.
+has_samples = df is not None and not df.empty
 
-    # Distance-based classification, analogous to the garnet application
+if has_samples:
+    reference_subgroup = None
+    subgroup_reference_distances = {}
+    subgroup_distance_color_map = {}
+
     df, subgroup_means, subgroup_sigmas = classify_diagonal_mahalanobis(
         df,
         generated_subgroups
     )
 
-    # Keep direct range-membership information as an additional diagnostic.
     df["Inside_Range_Field"] = df.apply(
         lambda r: classify_by_ranges(r, subgroup_defs),
         axis=1
     )
 
-    # User-facing classification label
     df["Subgroup"] = df["Nearest_Subfield"]
-
     summary_df = classification_summary(df, generated_subgroups)
 
-    # First locality from the uploaded Excel file (as requested)
     if "Locality" in df.columns and len(df) > 0:
         first_locality = str(df["Locality"].iloc[0])
     else:
         first_locality = "not specified"
+else:
+    (
+        reference_subgroup,
+        subgroup_reference_distances,
+        subgroup_distance_color_map,
+        subgroup_means,
+        subgroup_sigmas,
+    ) = subgroup_reference_distance_colors(
+        generated_subgroups,
+        colorscale,
+        reference_name=selected_reference_name,
+        distance_metric=distance_metric,
+        aitchison_zero_replacement=aitchison_zero_replacement
+    )
 
+    summary_df = pd.DataFrame(columns=["Subgroup", "Points", "Percent"])
+    first_locality = "no sample points"
+
+reference_is_automatic = selected_reference_name is None
+
+
+PLOT_WIDTH = 1700
+PLOT_HEIGHT = 950
+
+# Pairwise and three-way geometric overlap of visible subgroup fields.
+# Percentages are reported separately relative to each participating field.
+subgroup_field_overlaps = calculate_subgroup_field_overlaps(generated_subgroups)
+
+# Keep the in-plot text box compact when many subgroup pairs overlap.
+MAX_OVERLAP_LINES = 6
+displayed_overlaps = subgroup_field_overlaps[:MAX_OVERLAP_LINES]
+hidden_overlap_count = max(0, len(subgroup_field_overlaps) - len(displayed_overlaps))
+
+if has_samples:
     # Dynamic statistics-box sizing.
     # Height grows with subgroup count, while the user can scale the whole box.
     n_subgroups = max(len(summary_df), 1)
@@ -783,7 +1561,6 @@ if uploaded_file is not None:
     # Calculate the required height in PIXELS from the actual font sizes and
     # convert it to Plotly paper coordinates. This keeps the rectangle around
     # the complete legend even when the plot height or legend scale changes.
-    PLOT_HEIGHT = 950
 
     title_line_px = title_fs * 1.35
     method_line_px = method_fs * 1.45
@@ -805,6 +1582,17 @@ if uploaded_file is not None:
     padding_top_px = 18 * legend_scale
     padding_bottom_px = 24 * legend_scale
 
+    overlap_header_px = (24 * legend_scale) if displayed_overlaps else 0
+    overlap_line_px = (22 * legend_scale) if displayed_overlaps else 0
+    overlap_extra_lines = len(displayed_overlaps) + (1 if hidden_overlap_count > 0 else 0)
+    overlap_block_px = (
+        (18 * legend_scale)
+        + overlap_header_px
+        + overlap_extra_lines * overlap_line_px
+        if displayed_overlaps
+        else 0
+    )
+
     legend_height_px = (
         padding_top_px
         + title_line_px
@@ -813,6 +1601,7 @@ if uploaded_file is not None:
         + locality_line_px
         + gap_before_groups_px
         + n_subgroups * subgroup_line_px
+        + overlap_block_px
         + padding_bottom_px
     )
 
@@ -832,12 +1621,22 @@ if uploaded_file is not None:
             f"{_row['Subgroup']} {int(_row['Points'])} points ({float(_row['Percent']):.1f}%)"
         )
 
+    overlap_entries = [
+        " – ".join(o["Names"]) + ": " + " | ".join(
+            f"{name} {o['Percentages'][name]:.1f}%"
+            for name in o["Names"]
+        )
+        for o in displayed_overlaps
+    ]
+
     longest_entry_chars = max(
         [len("Subgroup Classification"),
-         len("Classification based on Mahalanobis distance"),
-         len("using a diagonal covariance approximation"),
-         len(f"Locality: {first_locality}")]
+         len("Classification -> Mahalanobis distance"),
+         len("(diagonal covariance approximation)"),
+         len(f"Locality: {first_locality}"),
+         len("Subgroup field overlap (shared area as % of each field)")]
         + [len(x) for x in complete_entries]
+        + [len(x) for x in overlap_entries]
     )
 
     # Character-based width estimate with padding. Cap prevents the box from
@@ -852,8 +1651,8 @@ if uploaded_file is not None:
     # Build in-plot statistical summary text exactly in the style of the garnet application
     stats_legend_text = (
         f"<span style='font-size:{title_fs}px; font-weight:bold;'>Subgroup Classification</span><br>"
-        f"<span style='font-size:{method_fs}px; font-style:italic;'>Classification based on Mahalanobis distance</span><br>"
-        f"<span style='font-size:{method_fs}px; font-style:italic;'>using a diagonal covariance approximation</span><br><br>"
+        f"<span style='font-size:{method_fs}px; font-style:italic;'>Classification -> Mahalanobis distance</span><br>"
+        f"<span style='font-size:{method_fs}px; font-style:italic;'>(diagonal covariance approximation)</span><br><br>"
         f"<span style='font-size:{locality_fs}px;'>Locality: {first_locality}</span><br><br>"
     )
 
@@ -871,46 +1670,309 @@ if uploaded_file is not None:
             f'</span><br>'
         )
 
-    fig = go.Figure()
-
-    # Background first
-    if show_gray_grid:
-        add_gray_cantor_grid(fig)
-
-    # Reference grid lines
-    for y in range(10, 100, 10):
-        fig.add_shape(
-            type="line",
-            x0=0,
-            x1=RECTANGLES[-1][0] + RECTANGLES[-1][1] + 10,
-            y0=y,
-            y1=y,
-            line=dict(color="rgba(80,80,80,0.45)", width=0.8, dash="dash"),
-            layer="above"
+    if displayed_overlaps:
+        overlap_fs = int(20 * legend_scale)
+        overlap_header_fs = int(22 * legend_scale)
+        stats_legend_text += (
+            f"<br><span style='font-size:{overlap_header_fs}px; font-weight:bold;'>"
+            "Subgroup field overlap</span>"
+            f"<span style='font-size:{overlap_fs}px; font-style:italic;'> "
+            "(shared area as % of each field)</span><br>"
         )
 
-    for x in [442, 909.5, 1352, 1769.5, 2162, 2529.5, 2872, 3189.5, 3482,
-              3749.5, 3992, 4209.5, 4402, 4569.5, 4712, 4850.5, 4922, 4995.5, 5037.5]:
-        fig.add_shape(
-            type="line",
-            x0=x, x1=x, y0=0, y1=100,
-            line=dict(color="rgba(80,80,80,0.55)", width=0.8, dash="dash"),
-            layer="above"
-        )
-
-    # User-defined subgroup fields over the gray grid
-    if show_subgroups and generated_subgroups:
-        nonempty_subgroups = [
-            sg for sg in generated_subgroups if not sg["points"].empty
-        ]
-        add_subgroup_fields(fig, nonempty_subgroups)
-
-        if nonempty_subgroups:
-            st.caption(
-                "Subgroup fields drawn: "
-                + ", ".join(sg["name"] for sg in nonempty_subgroups)
+        for overlap in displayed_overlaps:
+            overlap_names = " – ".join(overlap["Names"])
+            overlap_values = " | ".join(
+                f"{name} {overlap['Percentages'][name]:.1f}%"
+                for name in overlap["Names"]
+            )
+            stats_legend_text += (
+                f"<span style='font-size:{overlap_fs}px;'>"
+                f"{overlap_names}: {overlap_values}"
+                "</span><br>"
             )
 
+        if hidden_overlap_count > 0:
+            stats_legend_text += (
+                f"<span style='font-size:{overlap_fs}px; font-style:italic;'>"
+                f"+ {hidden_overlap_count} additional overlapping pair(s)"
+                "</span><br>"
+            )
+
+else:
+    # Keep a subgroup legend box visible even when no sample points are plotted.
+    n_subgroups = max(len([sg for sg in generated_subgroups if not sg["points"].empty]), 1)
+
+    title_fs = int(40 * legend_scale)
+    square_fs = int(42 * legend_scale)
+    group_fs = int(31 * legend_scale)
+
+    subgroup_line_px = max(square_fs * 1.10, group_fs * 1.40)
+    padding_top_px = 18 * legend_scale
+    padding_bottom_px = 24 * legend_scale
+    gap_before_groups_px = 18 * legend_scale
+
+    overlap_header_px = (24 * legend_scale) if displayed_overlaps else 0
+    overlap_line_px = (22 * legend_scale) if displayed_overlaps else 0
+    overlap_extra_lines = len(displayed_overlaps) + (1 if hidden_overlap_count > 0 else 0)
+    overlap_block_px = (
+        (18 * legend_scale)
+        + overlap_header_px
+        + overlap_extra_lines * overlap_line_px
+        if displayed_overlaps
+        else 0
+    )
+
+    legend_height_px = (
+        padding_top_px
+        + title_fs * 1.35
+        + gap_before_groups_px
+        + n_subgroups * subgroup_line_px
+        + overlap_block_px
+        + padding_bottom_px
+    )
+
+    legend_height = min(0.94, max(0.18, legend_height_px / PLOT_HEIGHT))
+    legend_y1 = 0.98
+    legend_y0 = max(0.02, legend_y1 - legend_height)
+
+    nonempty_names = [
+        sg["name"] for sg in generated_subgroups if not sg["points"].empty
+    ]
+    overlap_entries = [
+        " – ".join(o["Names"]) + ": " + " | ".join(
+            f"{name} {o['Percentages'][name]:.1f}%"
+            for name in o["Names"]
+        )
+        for o in displayed_overlaps
+    ]
+
+    longest_entry_chars = max(
+        [
+            len(distance_title),
+            len(
+                f"Reference: {reference_subgroup} "
+                + ("(automatic: largest mean distance)" if reference_is_automatic else "(user selected)")
+            ),
+            len("Subgroup field overlap (shared area as % of each field)")
+        ]
+        + [len(name) + 9 for name in nonempty_names]
+        + [len(x) for x in overlap_entries]
+    )
+
+    legend_width = min(
+        0.62,
+        max(0.28, (0.10 + longest_entry_chars * 0.0080) * legend_scale)
+    )
+    legend_x0 = 0.015
+    legend_x1 = min(0.92, legend_x0 + legend_width)
+
+    ref_text = reference_subgroup if reference_subgroup is not None else "not available"
+    reference_note = (
+        "automatic: largest mean distance"
+        if reference_is_automatic
+        else "user selected"
+    )
+    stats_legend_text = (
+        f"<span style='font-size:{title_fs}px; font-weight:bold;'>{distance_title}</span><br>"
+        f"<span style='font-size:{int(22 * legend_scale)}px; font-style:italic;'>"
+        f"Reference: {ref_text} ({reference_note})</span><br><br>"
+    )
+
+    sorted_legend_subgroups = sorted(
+        [sg for sg in generated_subgroups if not sg["points"].empty],
+        key=lambda sg: subgroup_reference_distances.get(sg["name"], np.inf)
+    )
+
+    for idx, sg in enumerate(sorted_legend_subgroups):
+        color = subgroup_distance_color_map.get(
+            sg["name"], SUBGROUP_COLORS[idx % len(SUBGROUP_COLORS)]
+        )
+        distance = subgroup_reference_distances.get(sg["name"], np.nan)
+        distance_txt = f"{distance:.2f}" if np.isfinite(distance) else "n/a"
+
+        stats_legend_text += (
+            f'<span style="color:{color}; font-size:{square_fs}px; vertical-align:middle;">■</span> '
+            f'<span style="font-size:{group_fs}px; font-weight:bold; vertical-align:middle;">'
+            f'{sg["name"]}</span> '
+            f'<span style="font-size:{int(23 * legend_scale)}px;">d={distance_txt}</span><br>'
+        )
+
+    if displayed_overlaps:
+        overlap_fs = int(20 * legend_scale)
+        overlap_header_fs = int(22 * legend_scale)
+        stats_legend_text += (
+            f"<br><span style='font-size:{overlap_header_fs}px; font-weight:bold;'>"
+            "Subgroup field overlap</span>"
+            f"<span style='font-size:{overlap_fs}px; font-style:italic;'> "
+            "(shared area as % of each field)</span><br>"
+        )
+
+        for overlap in displayed_overlaps:
+            overlap_names = " – ".join(overlap["Names"])
+            overlap_values = " | ".join(
+                f"{name} {overlap['Percentages'][name]:.1f}%"
+                for name in overlap["Names"]
+            )
+            stats_legend_text += (
+                f"<span style='font-size:{overlap_fs}px;'>"
+                f"{overlap_names}: {overlap_values}"
+                "</span><br>"
+            )
+
+        if hidden_overlap_count > 0:
+            stats_legend_text += (
+                f"<span style='font-size:{overlap_fs}px; font-style:italic;'>"
+                f"+ {hidden_overlap_count} additional overlapping pair(s)"
+                "</span><br>"
+            )
+
+fig = go.Figure()
+
+# Background first
+if show_gray_grid:
+    add_gray_cantor_grid(fig)
+
+# Reference grid lines
+for y in range(10, 100, 10):
+    fig.add_shape(
+        type="line",
+        x0=0,
+        x1=RECTANGLES[-1][0] + RECTANGLES[-1][1] + 10,
+        y0=y,
+        y1=y,
+        line=dict(color="rgba(80,80,80,0.45)", width=0.8, dash="dash"),
+        layer="above"
+    )
+
+for x in [442, 909.5, 1352, 1769.5, 2162, 2529.5, 2872, 3189.5, 3482,
+          3749.5, 3992, 4209.5, 4402, 4569.5, 4712, 4850.5, 4922, 4995.5, 5037.5]:
+    fig.add_shape(
+        type="line",
+        x0=x, x1=x, y0=0, y1=100,
+        line=dict(color="rgba(80,80,80,0.55)", width=0.8, dash="dash"),
+        layer="above"
+    )
+
+# User-defined subgroup fields over the gray grid
+if show_subgroups and generated_subgroups:
+    nonempty_subgroups = [
+        sg for sg in generated_subgroups if not sg["points"].empty
+    ]
+    active_subgroup_color_map = (
+        subgroup_distance_color_map if not has_samples else None
+    )
+    add_subgroup_fields(
+        fig,
+        nonempty_subgroups,
+        hull_width=subgroup_hull_width,
+        subfield_width=subgroup_subfield_width,
+        color_map=active_subgroup_color_map
+    )
+
+    if show_subgroup_labels:
+        for i, sg in enumerate(nonempty_subgroups):
+            pts = sg["points"]
+            if pts.empty:
+                continue
+
+            # Use the centroid of all valid generated compositions as label position.
+            label_x = float(pts["x"].mean())
+            label_y = float(pts["y"].mean())
+
+            # First two alphabetic characters of the subgroup name, upper case.
+            letters = "".join(ch for ch in str(sg["name"]) if ch.isalpha())
+            short_label = (letters[:2] if len(letters) >= 2 else letters).upper()
+
+            # Use a text trace instead of a layout annotation.
+            # The statistics box later replaces layout.annotations, which
+            # previously removed these subgroup labels.
+            fig.add_trace(
+                go.Scatter(
+                    x=[label_x],
+                    y=[label_y],
+                    mode="text",
+                    text=[f"<b>{short_label}</b>"],
+                    textposition="middle center",
+                    textfont=dict(
+                        size=20,
+                        color="black",
+                        family="Arial Black"
+                    ),
+                    hoverinfo="skip",
+                    showlegend=False,
+                    legendgroup=sg["name"]
+                )
+            )
+
+    if nonempty_subgroups:
+        st.caption(
+            "Subgroup fields drawn: "
+            + ", ".join(sg["name"] for sg in nonempty_subgroups)
+        )
+
+    if show_overlap_hatching and nonempty_subgroups:
+        add_overlap_hatching(
+            fig,
+            nonempty_subgroups,
+            hatch_spacing=0.65,
+            hatch_alpha=0.70,
+            hatch_width=1.60,
+            outline_alpha=0.75,
+            outline_width=2.20
+        )
+
+# Continuous subgroup-distance colorbar when no sample points are plotted.
+if (not has_samples) and reference_subgroup is not None and subgroup_reference_distances:
+    max_ref_distance = max(subgroup_reference_distances.values())
+
+    # Invisible marker solely to render the continuous colorbar.
+    fig.add_trace(
+        go.Scatter(
+            x=[None],
+            y=[None],
+            mode="markers",
+            marker=dict(
+                size=0.1,
+                color=[0.0],
+                colorscale=colorscale,
+                cmin=0.0,
+                cmax=max(max_ref_distance, 1e-9),
+                showscale=True,
+                colorbar=dict(
+                    title="",
+                    thickness=20,
+                    len=0.92,
+                    y=0.5,
+                    yanchor="middle",
+                    x=1.035,
+                    xanchor="left",
+                    tickfont=dict(size=12)
+                )
+            ),
+            hoverinfo="skip",
+            showlegend=False
+        )
+    )
+
+    # Vertical title beside the subgroup-distance colorbar.
+    # Using an annotation instead of colorbar.title gives precise control
+    # over rotation and spacing, avoiding overlap with tick labels.
+    fig.add_annotation(
+        x=1.082,
+        y=0.5,
+        xref="paper",
+        yref="paper",
+        text=f"{distance_title} from {reference_subgroup}",
+        textangle=-90,
+        showarrow=False,
+        font=dict(size=14, color="black"),
+        xanchor="center",
+        yanchor="middle",
+        align="center"
+    )
+
+if has_samples:
     # Uploaded samples
     ratio = df["A"] / (df["A"] + df["B"]).replace(0, np.nan)
     ratio = ratio.fillna(0)
@@ -1032,137 +2094,185 @@ if uploaded_file is not None:
         )
     )
 
-    tickvals = list(X_LABELS.keys())
-    ticktext = [
-        f"{ab}<br>CD{str(100 - int(ab[2:])).zfill(2)}"
-        for ab in X_LABELS.values()
-    ]
 
-    # Layout aligned more closely with the original garnet application.
-    # In particular, do not draw a heavy bottom x-axis line; instead use
-    # explicit top and left frame lines, as in the garnet plot.
-    fig.update_layout(
-        plot_bgcolor="white",
-        paper_bgcolor="white",
-        autosize=False,
-        width=2260,
+tickvals = list(X_LABELS.keys())
+ticktext = [
+    f"{ab}<br>CD{str(100 - int(ab[2:])).zfill(2)}"
+    for ab in X_LABELS.values()
+]
+
+# Layout aligned more closely with the original garnet application.
+# In particular, do not draw a heavy bottom x-axis line; instead use
+# explicit top and left frame lines, as in the garnet plot.
+
+x_axis_title, y_axis_title, x_axis_title_size, y_axis_title_size = build_dynamic_axis_titles(labels)
+
+fig.update_layout(
+    plot_bgcolor="white",
+    paper_bgcolor="white",
+    autosize=False,
+    width=PLOT_WIDTH,
+    height=PLOT_HEIGHT,
+    xaxis=dict(
+        title=dict(
+            text=x_axis_title,
+            font=dict(size=x_axis_title_size, color="black", family="Arial Black")
+        ),
+        range=[-30, RECTANGLES[-1][0] + RECTANGLES[-1][1] + 20],
+        tickvals=tickvals,
+        ticktext=ticktext,
+        tickangle=0,
+        tickfont=dict(size=16, color="black"),
+        automargin=True,
+        showgrid=False,
+        zeroline=False,
+        showline=False,
+        ticks=""
+    ),
+    yaxis=dict(
+        title=dict(
+            text=y_axis_title,
+            font=dict(size=y_axis_title_size, color="black", family="Arial Black")
+        ),
+        range=[0, 100],
+        constrain="domain",
+        dtick=10,
+        tickfont=dict(size=16, color="black"),
+        automargin=True,
+        showgrid=False,
+        zeroline=False,
+        showline=False,
+        ticks=""
+    ),
+    showlegend=False,
+    margin=dict(l=0, r=70, t=20, b=5),
+    hoverlabel=dict(font_size=24)
+)
+
+# Garnet-style plot frame: left vertical border and thin top border.
+x_min_frame = -30
+x_max_frame = RECTANGLES[-1][0] + RECTANGLES[-1][1]
+
+fig.add_shape(
+    type="line",
+    x0=x_min_frame,
+    x1=x_min_frame,
+    y0=0,
+    y1=100,
+    line=dict(color="#555555", width=0.8),
+    layer="above"
+)
+
+fig.add_shape(
+    type="line",
+    x0=x_min_frame,
+    x1=x_max_frame,
+    y0=100,
+    y1=100,
+    line=dict(color="#555555", width=0.8),
+    layer="above"
+)
+
+# ========================================================
+# IN-PLOT STATISTICS / SUBGROUP BOX
+# ========================================================
+
+# White rectangle behind the statistics text
+fig.add_shape(
+    type="rect",
+    xref="paper",
+    yref="paper",
+    x0=legend_x0,
+    x1=legend_x1,
+    y0=legend_y0,
+    y1=legend_y1,
+    fillcolor="white",
+    line=dict(color="black", width=3),
+    layer="above"
+)
+
+# IMPORTANT: use update_layout(annotations=[...]) exactly as in the garnet script
+fig.update_layout(
+    annotations=[
+        dict(
+            x=legend_x0,
+            y=legend_y1,
+            xref="paper",
+            yref="paper",
+            text=stats_legend_text,
+            showarrow=False,
+            font=dict(size=max(16, int(28 * legend_scale)), color="black"),
+            bgcolor="rgba(0,0,0,0)",
+            borderwidth=0,
+            xanchor="left",
+            yanchor="top",
+            align="left",
+            textangle=0
+        )
+    ],
+    showlegend=False
+)
+
+
+
+st.plotly_chart(fig, use_container_width=True)
+
+# ========================================================
+# Export figure — same dimensions as the displayed figure
+# ========================================================
+
+st.subheader("Export figure")
+
+export_format = st.selectbox(
+    "Export format",
+    ["PNG", "SVG"],
+    key="cantor_export_format"
+)
+
+try:
+    img_bytes = fig.to_image(
+        format=export_format.lower(),
+        width=PLOT_WIDTH,
         height=PLOT_HEIGHT,
-        xaxis=dict(
-            title=dict(
-                text=f"Sum of {labels[0]} (%) + {labels[1]} (%)",
-                font=dict(size=35, color="black", family="Arial Black")
-            ),
-            range=[-30, RECTANGLES[-1][0] + RECTANGLES[-1][1] + 20],
-            tickvals=tickvals,
-            ticktext=ticktext,
-            tickangle=0,
-            tickfont=dict(size=16, color="black"),
-            automargin=True,
-            showgrid=False,
-            zeroline=False,
-            showline=False,
-            ticks=""
-        ),
-        yaxis=dict(
-            title=dict(
-                text=f"{labels[2]} (%) /// {labels[3]} (%) = grid height − {labels[2]} (%)",
-                font=dict(size=28, color="black", family="Arial Black")
-            ),
-            range=[0, 100],
-            constrain="domain",
-            dtick=10,
-            tickfont=dict(size=16, color="black"),
-            automargin=True,
-            showgrid=False,
-            zeroline=False,
-            showline=False,
-            ticks=""
-        ),
-        showlegend=False,
-        margin=dict(l=0, r=5, t=20, b=5),
-        hoverlabel=dict(font_size=24)
+        scale=2
     )
 
-    # Garnet-style plot frame: left vertical border and thin top border.
-    x_min_frame = -30
-    x_max_frame = RECTANGLES[-1][0] + RECTANGLES[-1][1]
+    if export_format == "PNG":
+        file_extension = "png"
+        mime_type = "image/png"
+    else:
+        file_extension = "svg"
+        mime_type = "image/svg+xml"
 
-    fig.add_shape(
-        type="line",
-        x0=x_min_frame,
-        x1=x_min_frame,
-        y0=0,
-        y1=100,
-        line=dict(color="black", width=3),
-        layer="above"
+    st.download_button(
+        label=f"Download {export_format}",
+        data=img_bytes,
+        file_name=f"cantor_grid.{file_extension}",
+        mime=mime_type
     )
 
-    fig.add_shape(
-        type="line",
-        x0=x_min_frame,
-        x1=x_max_frame,
-        y0=100,
-        y1=100,
-        line=dict(color="black", width=2),
-        layer="above"
+except Exception as exc:
+    st.warning(
+        "Figure export is currently unavailable. "
+        "For PNG/SVG export, make sure Kaleido is installed. "
+        f"Details: {exc}"
     )
 
-    # ========================================================
-    # IN-PLOT STATISTICS BOX — same construction as garnet app
-    # ========================================================
-
-    # White rectangle behind the statistics text
-    fig.add_shape(
-        type="rect",
-        xref="paper",
-        yref="paper",
-        x0=legend_x0,
-        x1=legend_x1,
-        y0=legend_y0,
-        y1=legend_y1,
-        fillcolor="white",
-        line=dict(color="black", width=3),
-        layer="above"
-    )
-
-    # IMPORTANT: use update_layout(annotations=[...]) exactly as in the garnet script
-    fig.update_layout(
-        annotations=[
-            dict(
-                x=legend_x0,
-                y=legend_y1,
-                xref="paper",
-                yref="paper",
-                text=stats_legend_text,
-                showarrow=False,
-                font=dict(size=max(16, int(28 * legend_scale)), color="black"),
-                bgcolor="rgba(0,0,0,0)",
-                borderwidth=0,
-                xanchor="left",
-                yanchor="top",
-                align="left",
-                textangle=0
-            )
-        ],
-        showlegend=False
-    )
-
-    st.plotly_chart(fig, use_container_width=True)
-
+if has_samples:
     # ========================================================
     # Statistical classification output
     # ========================================================
     st.subheader("Distance-based subgroup classification")
 
     st.caption(
-        "Classification is based on Mahalanobis distance using a diagonal "
+        "Classification -> Mahalanobis distance using a diagonal "
         "covariance approximation. Subgroup means and standard deviations "
         "are calculated from the valid integer compositions generated from "
         "the specified subgroup ranges."
     )
 
     if not summary_df.empty:
-        st.dataframe(summary_df, use_container_width=True)
+        st.dataframe(summary_df, use_container_width=False)
 
     if subgroup_means:
         stats_rows = []
@@ -1199,7 +2309,9 @@ if uploaded_file is not None:
             "D": labels[3]
         }
     )
-    st.dataframe(display_df, use_container_width=True)
+    st.dataframe(display_df, use_container_width=False)
 
 else:
-    st.info("Upload an Excel file to display samples. The subgroup fields can be generated beforehand.")
+    st.caption(
+        "No sample points selected. The plot shows the Cantor grid and subgroup fields only."
+    )
