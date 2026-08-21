@@ -1030,6 +1030,7 @@ st.header("2. Define subgroup fields")
 definition_mode = st.radio(
     "Subgroup definition mode",
     ["Manual input", "Upload Excel file"],
+    index=1,
     horizontal=True
 )
 
@@ -1379,7 +1380,7 @@ with pc1:
 with pc2:
     colorscale = st.selectbox(
         "Sample color scale",
-        ["Plasma", "Viridis", "Turbo", "Inferno", "Cividis", "RdYlBu"]
+        ["Viridis", "Plasma","Turbo", "Inferno", "Cividis", "RdYlBu","YlOrRd"]
     )
 with pc3:
     subgroup_hull_width = st.slider(
@@ -1404,7 +1405,7 @@ legend_scale = st.slider(
     "Statistics box size factor",
     min_value=0.5,
     max_value=1.8,
-    value=0.8,
+    value=0.6,
     step=0.05,
     help="Scales the in-plot statistics box and text. Useful when many subgroups are defined."
 )
@@ -1412,7 +1413,7 @@ legend_scale = st.slider(
 show_subgroups = st.checkbox("Show subgroup fields", value=True)
 show_subgroup_labels = st.checkbox(
     "Show subgroup labels (first two letters)",
-    value=False,
+    value=True,
     help="Places the first two letters of each subgroup name at the center of its generated field."
 )
 show_gray_grid = st.checkbox("Show gray Cantor grid", value=True)
