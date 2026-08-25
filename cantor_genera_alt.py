@@ -469,154 +469,114 @@ def calculate_subgroup_field_overlaps(subgroup_results):
 def add_overlap_hatching(
     fig,
     subgroup_results,
-    hatch_spacing=0.45,
-    hatch_alpha=1.0,
-    hatch_width=1.8,
+    hatch_spacing=0.65,      # kept for compatibility
+    hatch_alpha=0.70,        # kept for compatibility
+    hatch_width=1.60,        # kept for compatibility
     outline_alpha=1.0,
-    outline_width=3.00,
-    fill_alpha=0.65
+    outline_width=2.8,
+    fill_alpha=1.0
 ):
     """
-    Highlight actual pairwise overlap areas with a clearly visible but still
-    restrained red diagonal hatch plus a thin dashed red overlap boundary.
+    Highlight ONLY the true geometric intersections of the individual
+    subgroup rectangles.
 
-    Performance-optimized:
-    all hatch segments are collected into one Scatter trace and all overlap
-    outlines into a second Scatter trace, instead of creating many shapes.
+    Each AB slice is treated separately.
+    No neighbouring overlap rectangles are connected into larger polygons.
     """
-    valid = [sg for sg in subgroup_results if not sg["points"].empty]
+
+    valid = [
+        sg for sg in subgroup_results
+        if not sg["points"].empty
+    ]
 
     rect_maps = {
         sg["name"]: subgroup_rectangles_by_ab(sg)
         for sg in valid
     }
 
-    drawn_regions = set()
-    hatch_x = []
-    hatch_y = []
-    outline_x = []
-    outline_y = []
+    # --------------------------------------------------------
+    # Pairwise subgroup comparison
+    # --------------------------------------------------------
 
     for i in range(len(valid)):
+
         for j in range(i + 1, len(valid)):
+
             name_a = valid[i]["name"]
             name_b = valid[j]["name"]
 
             rects_a = rect_maps[name_a]
             rects_b = rect_maps[name_b]
-            common_abs = set(rects_a).intersection(rects_b)
+
+            # Only AB slices that exist in BOTH groups
+            common_abs = sorted(
+                set(rects_a.keys())
+                .intersection(rects_b.keys())
+            )
 
             for ab in common_abs:
+
                 ax0, ax1, ay0, ay1 = rects_a[ab]
                 bx0, bx1, by0, by1 = rects_b[ab]
 
+                # ------------------------------------------------
+                # TRUE rectangle intersection
+                # ------------------------------------------------
+
                 x0 = max(ax0, bx0)
                 x1 = min(ax1, bx1)
+
                 y0 = max(ay0, by0)
                 y1 = min(ay1, by1)
 
+                # No geometric overlap
                 if x1 <= x0 or y1 <= y0:
                     continue
 
-                region_key = (
-                    int(ab),
-                    round(x0, 4), round(x1, 4),
-                    round(y0, 4), round(y1, 4)
+                # ------------------------------------------------
+                # Draw ONLY this individual overlap rectangle
+                # ------------------------------------------------
+
+                fig.add_trace(
+                    go.Scatter(
+                        x=[
+                            x0,
+                            x1,
+                            x1,
+                            x0,
+                            x0
+                        ],
+                        y=[
+                            y0,
+                            y0,
+                            y1,
+                            y1,
+                            y0
+                        ],
+
+                        mode="lines",
+
+                        line=dict(
+                            color=f"rgba(170,0,0,{outline_alpha})",
+                            width=outline_width
+                        ),
+
+                        fill="toself",
+
+                        fillcolor=(
+                            f"rgba(255,0,0,{fill_alpha})"
+                        ),
+
+                        hoverinfo="skip",
+                        showlegend=False,
+
+                        name=(
+                            f"Overlap: "
+                            f"{name_a} – {name_b}, "
+                            f"AB={ab}"
+                        )
+                    )
                 )
-                if region_key in drawn_regions:
-                    continue
-                drawn_regions.add(region_key)
-
-                # Thin dashed outline around the true overlap rectangle.
-                outline_x.extend([x0, x0, x1, x1, x0, None])
-                outline_y.extend([y0, y1, y1, y0, y0, None])
-
-                # Diagonal hatch lines with positive slope.
-                k_min = y0 - x1
-                k_max = y1 - x0
-                k = k_min
-
-                while k <= k_max + 1e-9:
-                    pts = []
-
-                    y_at_x0 = x0 + k
-                    if y0 <= y_at_x0 <= y1:
-                        pts.append((x0, y_at_x0))
-
-                    y_at_x1 = x1 + k
-                    if y0 <= y_at_x1 <= y1:
-                        pts.append((x1, y_at_x1))
-
-                    x_at_y0 = y0 - k
-                    if x0 <= x_at_y0 <= x1:
-                        pts.append((x_at_y0, y0))
-
-                    x_at_y1 = y1 - k
-                    if x0 <= x_at_y1 <= x1:
-                        pts.append((x_at_y1, y1))
-
-                    unique = []
-                    for p in pts:
-                        if not any(
-                            abs(p[0] - q[0]) < 1e-9 and
-                            abs(p[1] - q[1]) < 1e-9
-                            for q in unique
-                        ):
-                            unique.append(p)
-
-                    if len(unique) >= 2:
-                        best_pair = None
-                        best_d2 = -1.0
-
-                        for a in range(len(unique)):
-                            for b in range(a + 1, len(unique)):
-                                dx = unique[a][0] - unique[b][0]
-                                dy = unique[a][1] - unique[b][1]
-                                d2 = dx * dx + dy * dy
-
-                                if d2 > best_d2:
-                                    best_d2 = d2
-                                    best_pair = (unique[a], unique[b])
-
-                        if best_pair is not None:
-                            (sx, sy), (ex, ey) = best_pair
-                            hatch_x.extend([sx, ex, None])
-                            hatch_y.extend([sy, ey, None])
-
-                    k += hatch_spacing
-
-    if hatch_x:
-        fig.add_trace(
-            go.Scatter(
-                x=hatch_x,
-                y=hatch_y,
-                mode="lines",
-                line=dict(
-                    color=f"rgba(210,35,35,{hatch_alpha})",
-                    width=hatch_width
-                ),
-                hoverinfo="skip",
-                showlegend=False,
-                name="Subgroup overlap hatching"
-            )
-        )
-
-    if outline_x:
-        fig.add_trace(
-            go.Scatter(
-                x=outline_x,
-                y=outline_y,
-                mode="lines",
-                line=dict(
-                    color=f"rgba(190,20,20,{outline_alpha})",
-                    width=outline_width,
-                    dash="dot"
-                ),
-                hoverinfo="skip",
-                showlegend=False,
-                name="Subgroup overlap boundary"
-            )
-        )
 
 
 def dynamic_axis_font_size(text, base_size, min_size):
