@@ -469,129 +469,114 @@ def calculate_subgroup_field_overlaps(subgroup_results):
 def add_overlap_hatching(
     fig,
     subgroup_results,
-    hatch_spacing=0.65,      # kept for compatibility with existing call
-    hatch_alpha=0.70,        # kept for compatibility with existing call
-    hatch_width=1.60,        # kept for compatibility with existing call
+    hatch_spacing=0.65,      # kept for compatibility
+    hatch_alpha=0.70,        # kept for compatibility
+    hatch_width=1.60,        # kept for compatibility
     outline_alpha=1.0,
     outline_width=2.8,
     fill_alpha=1.0
 ):
     """
-    Highlight true pairwise subgroup overlaps as connected, solid bright-red zones.
+    Highlight ONLY the true geometric intersections of the individual
+    subgroup rectangles.
 
-    Overlap is still calculated slice-by-slice from the real subgroup rectangles.
-    Consecutive overlapping AB slices belonging to the same subgroup pair are then
-    visually joined into one continuous polygon. This avoids the previous effect
-    where the overlap appeared only as a series of narrow red vertical strips.
+    Each AB slice is treated separately.
+    No neighbouring overlap rectangles are connected into larger polygons.
     """
-    valid = [sg for sg in subgroup_results if not sg["points"].empty]
+
+    valid = [
+        sg for sg in subgroup_results
+        if not sg["points"].empty
+    ]
 
     rect_maps = {
         sg["name"]: subgroup_rectangles_by_ab(sg)
         for sg in valid
     }
 
-    # Collect actual overlap rectangles separately for every subgroup pair.
-    pair_regions = {}
+    # --------------------------------------------------------
+    # Pairwise subgroup comparison
+    # --------------------------------------------------------
 
     for i in range(len(valid)):
+
         for j in range(i + 1, len(valid)):
+
             name_a = valid[i]["name"]
             name_b = valid[j]["name"]
 
             rects_a = rect_maps[name_a]
             rects_b = rect_maps[name_b]
-            common_abs = sorted(set(rects_a).intersection(rects_b))
 
-            regions = []
+            # Only AB slices that exist in BOTH groups
+            common_abs = sorted(
+                set(rects_a.keys())
+                .intersection(rects_b.keys())
+            )
 
             for ab in common_abs:
+
                 ax0, ax1, ay0, ay1 = rects_a[ab]
                 bx0, bx1, by0, by1 = rects_b[ab]
 
+                # ------------------------------------------------
+                # TRUE rectangle intersection
+                # ------------------------------------------------
+
                 x0 = max(ax0, bx0)
                 x1 = min(ax1, bx1)
+
                 y0 = max(ay0, by0)
                 y1 = min(ay1, by1)
 
+                # No geometric overlap
                 if x1 <= x0 or y1 <= y0:
                     continue
 
-                regions.append({
-                    "ab": int(ab),
-                    "x0": float(x0),
-                    "x1": float(x1),
-                    "y0": float(y0),
-                    "y1": float(y1),
-                })
+                # ------------------------------------------------
+                # Draw ONLY this individual overlap rectangle
+                # ------------------------------------------------
 
-            if regions:
-                pair_regions[(name_a, name_b)] = regions
+                fig.add_trace(
+                    go.Scatter(
+                        x=[
+                            x0,
+                            x1,
+                            x1,
+                            x0,
+                            x0
+                        ],
+                        y=[
+                            y0,
+                            y0,
+                            y1,
+                            y1,
+                            y0
+                        ],
 
-    # Draw each run of consecutive AB slices as one connected polygon.
-    for (name_a, name_b), regions in pair_regions.items():
-        regions = sorted(regions, key=lambda r: r["ab"])
+                        mode="lines",
 
-        runs = []
-        current_run = []
+                        line=dict(
+                            color=f"rgba(170,0,0,{outline_alpha})",
+                            width=outline_width
+                        ),
 
-        for region in regions:
-            if not current_run:
-                current_run = [region]
-                continue
+                        fill="toself",
 
-            # Consecutive Cantor slices differ by exactly one AB unit.
-            if region["ab"] == current_run[-1]["ab"] + 1:
-                current_run.append(region)
-            else:
-                runs.append(current_run)
-                current_run = [region]
+                        fillcolor=(
+                            f"rgba(255,0,0,{fill_alpha})"
+                        ),
 
-        if current_run:
-            runs.append(current_run)
+                        hoverinfo="skip",
+                        showlegend=False,
 
-        for run in runs:
-            # Sort by visual x-position, not AB number, so polygon points are ordered.
-            run = sorted(run, key=lambda r: (r["x0"] + r["x1"]) / 2.0)
-
-            if len(run) == 1:
-                r = run[0]
-                poly_x = [r["x0"], r["x1"], r["x1"], r["x0"], r["x0"]]
-                poly_y = [r["y0"], r["y0"], r["y1"], r["y1"], r["y0"]]
-            else:
-                # Lower envelope from left to right.
-                lower_x = []
-                lower_y = []
-                for r in run:
-                    lower_x.extend([r["x0"], r["x1"]])
-                    lower_y.extend([r["y0"], r["y0"]])
-
-                # Upper envelope from right to left.
-                upper_x = []
-                upper_y = []
-                for r in reversed(run):
-                    upper_x.extend([r["x1"], r["x0"]])
-                    upper_y.extend([r["y1"], r["y1"]])
-
-                poly_x = lower_x + upper_x + [lower_x[0]]
-                poly_y = lower_y + upper_y + [lower_y[0]]
-
-            fig.add_trace(
-                go.Scatter(
-                    x=poly_x,
-                    y=poly_y,
-                    mode="lines",
-                    line=dict(
-                        color=f"rgba(170,0,0,{outline_alpha})",
-                        width=outline_width
-                    ),
-                    fill="toself",
-                    fillcolor=f"rgba(255,0,0,{fill_alpha})",
-                    hoverinfo="skip",
-                    showlegend=False,
-                    name=f"Overlap: {name_a} – {name_b}"
+                        name=(
+                            f"Overlap: "
+                            f"{name_a} – {name_b}, "
+                            f"AB={ab}"
+                        )
+                    )
                 )
-            )
 
 
 def dynamic_axis_font_size(text, base_size, min_size):
