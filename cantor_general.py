@@ -258,7 +258,10 @@ def add_subgroup_fields(fig, subgroup_results, hull_width=1.0, subfield_width=1.
         # subtle fill, moderately transparent subfield outline,
         # and an even softer dashed outer hull.
         fill = rgba_with_alpha(color, 0.12)
-        subfield_line_color = rgba_with_alpha(color, 0.70)
+        # Keep the subgroup colour for the fill, but give every individual
+        # AB/CD subfield rectangle an additional very thin dark contour so
+        # pale colours remain visible against the gray Cantor grid.
+        subfield_line_color = "rgba(45,45,45,0.90)"
         hull_line_color = rgba_with_alpha(color, 0.60)
 
         first_trace = True
