@@ -584,34 +584,44 @@ def add_overlap_hatching(
 
                 # Add a black cross at the center of each true overlap rectangle.
                 # This provides an additional visual cue on top of the red overlap fill.
-                cross_x = (x0 + x1) / 2.0
-                cross_y = (y0 + y1) / 2.0
+# Add a thin black cross at the center of each true overlap rectangle.
+cross_x = (x0 + x1) / 2.0
+cross_y = (y0 + y1) / 2.0
 
-                fig.add_trace(
-                    go.Scatter(
-                        x=[cross_x],
-                        y=[cross_y],
-                        mode="markers",
-                        marker=dict(
-                            symbol="x",
-                            size=8,
-                            color="black",
-                            line=dict(
-                                color="black",
-                                width=2.2
-                            )
-                        ),
-                        hoverinfo="skip",
-                        showlegend=False,
-                        name=(
-                            f"Overlap cross: "
-                            f"{name_a} – {name_b}, "
-                            f"AB={ab}"
-                        )
-                    )
-                )
+# Cross dimensions: length and thickness can be controlled independently.
+cross_half_x = 35.0   # horizontal half-length in plot coordinates
+cross_half_y = 0.65   # vertical half-length in plot coordinates
+cross_width = 1.5     # line thickness
 
+# Diagonal: bottom-left -> top-right
+fig.add_trace(
+    go.Scatter(
+        x=[cross_x - cross_half_x, cross_x + cross_half_x],
+        y=[cross_y - cross_half_y, cross_y + cross_half_y],
+        mode="lines",
+        line=dict(
+            color="black",
+            width=cross_width
+        ),
+        hoverinfo="skip",
+        showlegend=False
+    )
+)
 
+# Diagonal: top-left -> bottom-right
+fig.add_trace(
+    go.Scatter(
+        x=[cross_x - cross_half_x, cross_x + cross_half_x],
+        y=[cross_y + cross_half_y, cross_y - cross_half_y],
+        mode="lines",
+        line=dict(
+            color="black",
+            width=cross_width
+        ),
+        hoverinfo="skip",
+        showlegend=False
+    )
+)
 def dynamic_axis_font_size(text, base_size, min_size):
     """
     Scale an axis-title font according to the visible title length.
