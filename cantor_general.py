@@ -241,7 +241,7 @@ def rgba_with_alpha(color, alpha):
 
 def add_subgroup_fields(fig, subgroup_results, hull_width=1.0, subfield_width=1.0, color_map=None):
     """
-    Draw subgroup fields as colored rectangular outlines only.
+    Draw subgroup fields as translucent colored rectangles with matching colored outlines.
 
     For every AB slice, the valid constrained Cartesian-product compositions
     define a rectangular subfield in the final Cantor-grid coordinates.
@@ -254,15 +254,16 @@ def add_subgroup_fields(fig, subgroup_results, hull_width=1.0, subfield_width=1.
 
         color = (color_map or {}).get(sg["name"], SUBGROUP_COLORS[idx % len(SUBGROUP_COLORS)])
 
-        # Softer garnet-style subgroup appearance:
-        # subtle fill, moderately transparent subfield outline,
-        # and an even softer dashed outer hull.
-        fill = rgba_with_alpha(color, 0.12)
-        # Keep the subgroup colour for the fill, but give every individual
-        # AB/CD subfield rectangle an additional very thin dark contour so
-        # pale colours remain visible against the gray Cantor grid.
-        subfield_line_color = "rgba(45,45,45,0.90)"
-        hull_line_color = rgba_with_alpha(color, 0.60)
+        # Subgroup rectangles use the exact color assigned by the active
+        # color scale. The fill is translucent so the Cantor grid remains
+        # visible; the rectangle boundary uses the SAME color with higher
+        # opacity, making it appear slightly more intense without adding
+        # any black/dark contour.
+        fill = rgba_with_alpha(color, 0.28)
+        subfield_line_color = rgba_with_alpha(color, 0.95)
+
+        # The dashed outer convex hull also keeps the subgroup color.
+        hull_line_color = rgba_with_alpha(color, 0.72)
 
         first_trace = True
 
@@ -1358,11 +1359,15 @@ with pc3:
 with pc4:
     subgroup_subfield_width = st.slider(
         "Subfield boundary line width",
-        min_value=0.2,
-        max_value=10.0,
-        value=3.0,
+        min_value=0.1,
+        max_value=5.0,
+        value=0.8,
         step=0.1,
-        help="Controls the thickness of the colored boundary line around each individual scattered subfield."
+        help=(
+            "Controls the thickness of the boundary around each individual "
+            "AB/CD subfield. The boundary uses the same color as the subgroup "
+            "fill, but with higher opacity."
+        )
     )
 
 legend_scale = st.slider(
