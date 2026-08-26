@@ -262,8 +262,8 @@ def add_subgroup_fields(fig, subgroup_results, hull_width=1.0, subfield_width=1.
         fill = rgba_with_alpha(color, 0.28)
         subfield_line_color = rgba_with_alpha(color, 0.95)
 
-        # The dashed outer convex hull also keeps the subgroup color.
-        hull_line_color = "rgba(0,0,0,0.90)"
+        # The outer convex hull is a solid black line.
+        hull_line_color = "black"
 
         first_trace = True
 
@@ -473,9 +473,9 @@ def calculate_subgroup_field_overlaps(subgroup_results):
 def add_overlap_hatching(
     fig,
     subgroup_results,
-    hatch_spacing=1.15,      # approximate spacing of overlap X markers
-    hatch_alpha=0.88,        # opacity of overlap X markers
-    hatch_width=1.80,        # line width of overlap X markers
+    hatch_spacing=0.65,      # kept for compatibility
+    hatch_alpha=0.70,        # kept for compatibility
+    hatch_width=1.60,        # kept for compatibility
     outline_alpha=1.0,
     outline_width=2.8,
     fill_alpha=1.0
@@ -483,10 +483,6 @@ def add_overlap_hatching(
     """
     Highlight ONLY the true geometric intersections of the individual
     subgroup rectangles.
-
-    Each overlap is shown with a red fill/outline PLUS dark X markers,
-    so overlap remains recognizable even when the active colour scale
-    itself contains red or orange tones.
 
     Each AB slice is treated separately.
     No neighbouring overlap rectangles are connected into larger polygons.
@@ -586,55 +582,32 @@ def add_overlap_hatching(
                     )
                 )
 
-                # Add dark X markers as a second, non-colour cue for overlap.
-                # This avoids ambiguity when the selected colour scale itself
-                # contains red/orange tones.
-                rect_w = x1 - x0
-                rect_h = y1 - y0
-
-                nx = max(1, min(6, int(np.ceil(rect_w / max(hatch_spacing, 0.25)))))
-                ny = max(1, min(4, int(np.ceil(rect_h / max(hatch_spacing, 0.25)))))
-
-                x_centers = np.linspace(
-                    x0 + rect_w / (2 * nx),
-                    x1 - rect_w / (2 * nx),
-                    nx
-                )
-                y_centers = np.linspace(
-                    y0 + rect_h / (2 * ny),
-                    y1 - rect_h / (2 * ny),
-                    ny
-                )
-
-                # Large X markers. They are intentionally allowed to extend
-                # beyond the individual overlap rectangle so that even very
-                # narrow overlap slices remain visually obvious.
-                dx = max(rect_w / max(nx, 1) * 0.70, 0.55)
-                dy = max(rect_h / max(ny, 1) * 0.70, 0.55)
-
-                cross_x = []
-                cross_y = []
-
-                for xc in x_centers:
-                    for yc in y_centers:
-                        cross_x.extend([xc - dx, xc + dx, None])
-                        cross_y.extend([yc - dy, yc + dy, None])
-                        cross_x.extend([xc - dx, xc + dx, None])
-                        cross_y.extend([yc + dy, yc - dy, None])
+                # Add a black cross at the center of each true overlap rectangle.
+                # This provides an additional visual cue on top of the red overlap fill.
+                cross_x = (x0 + x1) / 2.0
+                cross_y = (y0 + y1) / 2.0
 
                 fig.add_trace(
                     go.Scatter(
-                        x=cross_x,
-                        y=cross_y,
-                        mode="lines",
-                        line=dict(
-                            color=f"rgba(35,35,35,{hatch_alpha})",
-                            width=hatch_width
+                        x=[cross_x],
+                        y=[cross_y],
+                        mode="markers",
+                        marker=dict(
+                            symbol="x",
+                            size=18,
+                            color="black",
+                            line=dict(
+                                color="black",
+                                width=2.2
+                            )
                         ),
                         hoverinfo="skip",
                         showlegend=False,
-                        legendgroup="overlap_crosses",
-                        name="Overlap cross markers"
+                        name=(
+                            f"Overlap cross: "
+                            f"{name_a} – {name_b}, "
+                            f"AB={ab}"
+                        )
                     )
                 )
 
@@ -1408,7 +1381,7 @@ with pc3:
         "Subgroup convex hull line width",
         min_value=0.2,
         max_value=5.0,
-        value=1.0,
+        value=3.0,
         step=0.1,
         help="Controls the thickness of the dashed outer convex-hull line around each subgroup."
     )
@@ -1417,7 +1390,7 @@ with pc4:
         "Subfield boundary line width",
         min_value=0.1,
         max_value=5.0,
-        value=3.0,
+        value=0.8,
         step=0.1,
         help=(
             "Controls the thickness of the boundary around each individual "
