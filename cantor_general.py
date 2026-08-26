@@ -262,8 +262,8 @@ def add_subgroup_fields(fig, subgroup_results, hull_width=1.0, subfield_width=1.
         fill = rgba_with_alpha(color, 0.28)
         subfield_line_color = rgba_with_alpha(color, 0.95)
 
-        # The dashed outer convex hull also keeps the subgroup color.
-        hull_line_color = rgba_with_alpha(color, 0.72)
+        # The dashed outer convex hull is black.
+        hull_line_color = "black"
 
         first_trace = True
 
