@@ -486,6 +486,11 @@ def add_overlap_hatching(
 
     Each AB slice is treated separately.
     No neighbouring overlap rectangles are connected into larger polygons.
+
+    The overlap itself is drawn in red. In addition, a thin black X is drawn
+    across the centre of every true overlap rectangle. The X is constructed
+    from two independent line traces so its length and thickness can be
+    controlled separately.
     """
 
     valid = [
@@ -501,9 +506,7 @@ def add_overlap_hatching(
     # --------------------------------------------------------
     # Pairwise subgroup comparison
     # --------------------------------------------------------
-
     for i in range(len(valid)):
-
         for j in range(i + 1, len(valid)):
 
             name_a = valid[i]["name"]
@@ -512,10 +515,9 @@ def add_overlap_hatching(
             rects_a = rect_maps[name_a]
             rects_b = rect_maps[name_b]
 
-            # Only AB slices that exist in BOTH groups
+            # Only AB slices that exist in BOTH groups.
             common_abs = sorted(
-                set(rects_a.keys())
-                .intersection(rects_b.keys())
+                set(rects_a.keys()).intersection(rects_b.keys())
             )
 
             for ab in common_abs:
@@ -523,105 +525,102 @@ def add_overlap_hatching(
                 ax0, ax1, ay0, ay1 = rects_a[ab]
                 bx0, bx1, by0, by1 = rects_b[ab]
 
-                # ------------------------------------------------
-                # TRUE rectangle intersection
-                # ------------------------------------------------
-
+                # TRUE rectangle intersection.
                 x0 = max(ax0, bx0)
                 x1 = min(ax1, bx1)
-
                 y0 = max(ay0, by0)
                 y1 = min(ay1, by1)
 
-                # No geometric overlap
                 if x1 <= x0 or y1 <= y0:
                     continue
 
                 # ------------------------------------------------
-                # Draw ONLY this individual overlap rectangle
+                # Red overlap rectangle
                 # ------------------------------------------------
-
                 fig.add_trace(
                     go.Scatter(
-                        x=[
-                            x0,
-                            x1,
-                            x1,
-                            x0,
-                            x0
-                        ],
-                        y=[
-                            y0,
-                            y0,
-                            y1,
-                            y1,
-                            y0
-                        ],
-
+                        x=[x0, x1, x1, x0, x0],
+                        y=[y0, y0, y1, y1, y0],
                         mode="lines",
-
                         line=dict(
                             color=f"rgba(170,0,0,{outline_alpha})",
                             width=outline_width
                         ),
-
                         fill="toself",
-
-                        fillcolor=(
-                            f"rgba(255,0,0,{fill_alpha})"
-                        ),
-
+                        fillcolor=f"rgba(255,0,0,{fill_alpha})",
                         hoverinfo="skip",
                         showlegend=False,
-
                         name=(
-                            f"Overlap: "
-                            f"{name_a} – {name_b}, "
+                            f"Overlap: {name_a} – {name_b}, "
                             f"AB={ab}"
                         )
                     )
                 )
 
-                # Add a black cross at the center of each true overlap rectangle.
-                # This provides an additional visual cue on top of the red overlap fill.
-# Add a thin black cross at the center of each true overlap rectangle.
-cross_x = (x0 + x1) / 2.0
-cross_y = (y0 + y1) / 2.0
+                # ------------------------------------------------
+                # Thin black X across the overlap
+                # ------------------------------------------------
+                cross_x = (x0 + x1) / 2.0
+                cross_y = (y0 + y1) / 2.0
 
-# Cross dimensions: length and thickness can be controlled independently.
-cross_half_x = 35.0   # horizontal half-length in plot coordinates
-cross_half_y = 0.65   # vertical half-length in plot coordinates
-cross_width = 1.5     # line thickness
+                # Length and thickness are independent.
+                # These values are intentionally larger than the narrow
+                # overlap slices so the X may extend beyond the red subfield.
+                cross_half_x = 35.0
+                cross_half_y = 0.65
+                cross_width = 1.2
 
-# Diagonal: bottom-left -> top-right
-fig.add_trace(
-    go.Scatter(
-        x=[cross_x - cross_half_x, cross_x + cross_half_x],
-        y=[cross_y - cross_half_y, cross_y + cross_half_y],
-        mode="lines",
-        line=dict(
-            color="black",
-            width=cross_width
-        ),
-        hoverinfo="skip",
-        showlegend=False
-    )
-)
+                # Diagonal: bottom-left -> top-right
+                fig.add_trace(
+                    go.Scatter(
+                        x=[
+                            cross_x - cross_half_x,
+                            cross_x + cross_half_x
+                        ],
+                        y=[
+                            cross_y - cross_half_y,
+                            cross_y + cross_half_y
+                        ],
+                        mode="lines",
+                        line=dict(
+                            color="black",
+                            width=cross_width
+                        ),
+                        hoverinfo="skip",
+                        showlegend=False,
+                        name=(
+                            f"Overlap cross 1: {name_a} – {name_b}, "
+                            f"AB={ab}"
+                        )
+                    )
+                )
 
-# Diagonal: top-left -> bottom-right
-fig.add_trace(
-    go.Scatter(
-        x=[cross_x - cross_half_x, cross_x + cross_half_x],
-        y=[cross_y + cross_half_y, cross_y - cross_half_y],
-        mode="lines",
-        line=dict(
-            color="black",
-            width=cross_width
-        ),
-        hoverinfo="skip",
-        showlegend=False
-    )
-)
+                # Diagonal: top-left -> bottom-right
+                fig.add_trace(
+                    go.Scatter(
+                        x=[
+                            cross_x - cross_half_x,
+                            cross_x + cross_half_x
+                        ],
+                        y=[
+                            cross_y + cross_half_y,
+                            cross_y - cross_half_y
+                        ],
+                        mode="lines",
+                        line=dict(
+                            color="black",
+                            width=cross_width
+                        ),
+                        hoverinfo="skip",
+                        showlegend=False,
+                        name=(
+                            f"Overlap cross 2: {name_a} – {name_b}, "
+                            f"AB={ab}"
+                        )
+                    )
+                )
+
+
 def dynamic_axis_font_size(text, base_size, min_size):
     """
     Scale an axis-title font according to the visible title length.
