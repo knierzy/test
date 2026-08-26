@@ -263,7 +263,7 @@ def add_subgroup_fields(fig, subgroup_results, hull_width=1.0, subfield_width=1.
         subfield_line_color = rgba_with_alpha(color, 0.95)
 
         # The dashed outer convex hull also keeps the subgroup color.
-        hull_line_color = rgba_with_alpha(color, 0.72)
+        hull_line_color = "rgba(0,0,0,0.90)"
 
         first_trace = True
 
@@ -475,7 +475,7 @@ def add_overlap_hatching(
     subgroup_results,
     hatch_spacing=1.15,      # approximate spacing of overlap X markers
     hatch_alpha=0.88,        # opacity of overlap X markers
-    hatch_width=1.35,        # line width of overlap X markers
+    hatch_width=1.80,        # line width of overlap X markers
     outline_alpha=1.0,
     outline_width=2.8,
     fill_alpha=1.0
@@ -606,8 +606,11 @@ def add_overlap_hatching(
                     ny
                 )
 
-                dx = min(rect_w / max(nx, 1) * 0.28, 0.32)
-                dy = min(rect_h / max(ny, 1) * 0.28, 0.32)
+                # Large X markers. They are intentionally allowed to extend
+                # beyond the individual overlap rectangle so that even very
+                # narrow overlap slices remain visually obvious.
+                dx = max(rect_w / max(nx, 1) * 0.70, 0.55)
+                dy = max(rect_h / max(ny, 1) * 0.70, 0.55)
 
                 cross_x = []
                 cross_y = []
@@ -1405,7 +1408,7 @@ with pc3:
         "Subgroup convex hull line width",
         min_value=0.2,
         max_value=5.0,
-        value=3.0,
+        value=1.0,
         step=0.1,
         help="Controls the thickness of the dashed outer convex-hull line around each subgroup."
     )
@@ -1414,7 +1417,7 @@ with pc4:
         "Subfield boundary line width",
         min_value=0.1,
         max_value=5.0,
-        value=0.8,
+        value=3.0,
         step=0.1,
         help=(
             "Controls the thickness of the boundary around each individual "
