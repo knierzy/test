@@ -594,7 +594,7 @@ def add_overlap_hatching(
                         mode="markers",
                         marker=dict(
                             symbol="x",
-                            size=18,
+                            size=8,
                             color="black",
                             line=dict(
                                 color="black",
@@ -1381,7 +1381,7 @@ with pc3:
         "Subgroup convex hull line width",
         min_value=0.2,
         max_value=5.0,
-        value=3.0,
+        value=1.0,
         step=0.1,
         help="Controls the thickness of the dashed outer convex-hull line around each subgroup."
     )
@@ -1390,7 +1390,7 @@ with pc4:
         "Subfield boundary line width",
         min_value=0.1,
         max_value=5.0,
-        value=0.8,
+        value=3.0,
         step=0.1,
         help=(
             "Controls the thickness of the boundary around each individual "
