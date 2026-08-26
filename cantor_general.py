@@ -1383,7 +1383,8 @@ with pc1:
 with pc2:
     colorscale = st.selectbox(
         "Sample color scale",
-        ["Viridis", "Plasma","Turbo", "Inferno", "Cividis", "RdYlBu","YlOrRd"]
+        ["Viridis", "Plasma", "Turbo", "Rainbow", "Jet", "HSV",
+           "Inferno", "Cividis", "RdYlBu", "YlOrRd"]
     )
 with pc3:
     subgroup_hull_width = st.slider(
