@@ -380,7 +380,7 @@ def plot_imported_hulls_with_file_colors(grouped_hulls, file_color_mapping):
             x=hull_x,
             y=hull_y,
             mode="lines",
-            line=dict(color="black", width=1.5),
+            line=dict(color=color, width=1.5),
             fill="toself",
             fillcolor=ensure_transparency(color, alpha=0.4),
             name=f"Herkunft: {herkunft}, AB: {ab_value}"
