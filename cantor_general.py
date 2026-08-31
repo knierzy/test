@@ -2120,8 +2120,17 @@ if (not has_samples) and reference_subgroup is not None and subgroup_reference_d
 
 if has_samples:
     # Uploaded samples
-    ratio = df["A"] / (df["A"] + df["B"]).replace(0, np.nan)
-    ratio = ratio.fillna(0)
+    # The outer halo/colorbar represents the selected multivariate
+    # classification distance of each sample to its assigned subgroup.
+    sample_distances = pd.to_numeric(
+        df[classification_distance_column], errors="coerce"
+    ).astype(float)
+    finite_sample_distances = sample_distances[np.isfinite(sample_distances)]
+    max_sample_distance = (
+        float(finite_sample_distances.max())
+        if len(finite_sample_distances) > 0 else 1.0
+    )
+    max_sample_distance = max(max_sample_distance, 1e-9)
 
     hover_text = [
         (
@@ -2145,7 +2154,7 @@ if has_samples:
 
     # ========================================================
     # Layered sample markers
-    # Outer ring = continuous colorbar value A / (A+B)
+    # Outer ring = selected multivariate distance to assigned subgroup
     # Inner core = nearest subgroup from the minimum selected classification distance
     # ========================================================
 
@@ -2184,21 +2193,21 @@ if has_samples:
         )
     )
 
-    # 2) Outer ring: continuous colorbar value
+    # 2) Outer ring: selected multivariate classification distance
     fig.add_trace(
         go.Scatter(
             x=df["x"], y=df["y"],
             mode="markers",
             marker=dict(
                 size=color_ring_size,
-                color=ratio,
+                color=sample_distances,
                 colorscale=colorscale,
-                cmin=0,
-                cmax=1,
+                cmin=0.0,
+                cmax=max_sample_distance,
                 opacity=0.95,
                 line=dict(width=0),
                 colorbar=dict(
-                    title=f"{labels[0]} / ({labels[0]} + {labels[1]})",
+                    title=classification_distance_title,
                     thickness=20
                 )
             ),
