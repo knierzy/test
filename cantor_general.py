@@ -789,6 +789,32 @@ def aitchison_distance(mu_i, mu_j, zero_replacement=0.5):
     return float(np.linalg.norm(clr_x - clr_y))
 
 
+def diagonal_mahalanobis_distance(x, mu, sigma):
+    """
+    Mahalanobis distance using a diagonal covariance approximation.
+    Each component deviation is scaled by the subgroup-specific standard deviation.
+    """
+    x = np.asarray(x, dtype=float)
+    mu = np.asarray(mu, dtype=float)
+    sigma = np.asarray(sigma, dtype=float)
+    sigma = np.clip(sigma, 0.5, None)
+    return float(np.sqrt(np.sum(((x - mu) / sigma) ** 2)))
+
+
+def pooled_diagonal_mahalanobis_distance(mu_i, mu_j, sigma_i, sigma_j):
+    """
+    Symmetric subgroup-to-subgroup Mahalanobis distance using a pooled
+    diagonal variance: var_pool = (sigma_i^2 + sigma_j^2) / 2.
+    """
+    mu_i = np.asarray(mu_i, dtype=float)
+    mu_j = np.asarray(mu_j, dtype=float)
+    sigma_i = np.asarray(sigma_i, dtype=float)
+    sigma_j = np.asarray(sigma_j, dtype=float)
+    pooled_sigma = np.sqrt((sigma_i ** 2 + sigma_j ** 2) / 2.0)
+    pooled_sigma = np.clip(pooled_sigma, 0.5, None)
+    return float(np.sqrt(np.sum(((mu_i - mu_j) / pooled_sigma) ** 2)))
+
+
 def subgroup_reference_distance_colors(
     subgroup_results,
     colorscale,
@@ -806,7 +832,8 @@ def subgroup_reference_distance_colors(
     4) color every subgroup continuously by its distance from that reference.
 
     Supported metrics:
-    - Aitchison (default; CLR geometry with 0.5% zero replacement)
+    - Mahalanobis (symmetric pooled diagonal covariance approximation)
+    - Aitchison (CLR geometry with zero replacement)
     - Log-Euclidean (ln(x + 1))
     """
     means, sigmas = subgroup_statistics_from_generated(subgroup_results)
@@ -828,7 +855,12 @@ def subgroup_reference_distance_colors(
             if i == j:
                 pairwise[name_i][name_j] = 0.0
             elif name_j not in pairwise[name_i]:
-                if distance_metric == "Aitchison":
+                if distance_metric == "Mahalanobis":
+                    d = pooled_diagonal_mahalanobis_distance(
+                        means[name_i], means[name_j],
+                        sigmas[name_i], sigmas[name_j]
+                    )
+                elif distance_metric == "Aitchison":
                     d = aitchison_distance(
                         means[name_i],
                         means[name_j],
@@ -940,11 +972,9 @@ def classify_by_selected_distance(
     the SAME distance metric selected in the plot settings.
 
     Supported metrics:
+    - Mahalanobis: diagonal covariance approximation using subgroup-specific SDs
     - Aitchison: CLR geometry after multiplicative zero replacement
     - Log-Euclidean: Euclidean distance after ln(x + 1) transformation
-
-    This keeps sample-based classification consistent with the subgroup
-    distance representation used when no sample points are plotted.
     """
     means, sigmas = subgroup_statistics_from_generated(subgroup_results)
 
@@ -963,7 +993,9 @@ def classify_by_selected_distance(
         best_distance = np.inf
 
         for name, mu in means.items():
-            if distance_metric == "Aitchison":
+            if distance_metric == "Mahalanobis":
+                d = diagonal_mahalanobis_distance(x, mu, sigmas[name])
+            elif distance_metric == "Aitchison":
                 d = aitchison_distance(
                     x,
                     mu,
@@ -1487,16 +1519,27 @@ show_overlap_hatching = st.checkbox(
     help="Adds a subtle diagonal hatch only where subgroup fields geometrically overlap."
 )
 
-# Distance metric for subgroup-to-subgroup comparison.
-# Aitchison is the default because A/B/C/D are compositional percentages.
+# Multivariate distance metric. The recommended default depends on the task:
+# - without samples: Aitchison for subgroup-to-reference comparison
+# - with samples: diagonal Mahalanobis for assignment to differently dispersed fields
+samples_requested = sample_mode != "No sample points"
+metric_options = ["Mahalanobis", "Aitchison", "Log-Euclidean"]
+metric_default_index = 0 if samples_requested else 1
+metric_widget_key = (
+    "distance_metric_with_samples" if samples_requested
+    else "distance_metric_without_samples"
+)
+
 distance_metric = st.selectbox(
-    "Subgroup distance metric",
-    ["Aitchison", "Log-Euclidean"],
-    index=0,
+    "Multivariate distance metric",
+    metric_options,
+    index=metric_default_index,
+    key=metric_widget_key,
     help=(
-        "Aitchison is recommended for compositional percentage data and uses CLR "
-        "geometry. Zero components are handled by multiplicative replacement. "
-        "Log-Euclidean uses ln(x + 1)."
+        "Default: Mahalanobis (diagonal covariance) when sample points are used, "
+        "because subgroup-specific spread is considered during classification. "
+        "Default: Aitchison when only subgroup fields are compared relative to a reference. "
+        "You can override the default in either mode."
     )
 )
 
@@ -1519,7 +1562,9 @@ else:
     aitchison_zero_replacement = 0.5
 
 distance_title = (
-    "Aitchison distance"
+    "Mahalanobis distance (diagonal covariance)"
+    if distance_metric == "Mahalanobis"
+    else "Aitchison distance"
     if distance_metric == "Aitchison"
     else "Log-Euclidean distance"
 )
@@ -1572,7 +1617,9 @@ if has_samples:
     classification_distance_title = distance_title
     classification_distance_column = "Classification_Distance"
     classification_method_note = (
-        f"CLR geometry; multiplicative zero replacement δ={aitchison_zero_replacement:.2f}%"
+        "diagonal covariance approximation; subgroup-specific standard deviations"
+        if distance_metric == "Mahalanobis"
+        else f"CLR geometry; multiplicative zero replacement δ={aitchison_zero_replacement:.2f}%"
         if distance_metric == "Aitchison"
         else "ln(x + 1) transformed Euclidean geometry"
     )
@@ -2357,7 +2404,8 @@ if has_samples:
     st.caption(
         f"Classification -> {classification_distance_title}. "
         f"{classification_method_note}. Each sample is assigned to the subgroup "
-        "whose generated-composition centroid has the smallest selected distance."
+        "with the smallest selected multivariate distance. For Mahalanobis, deviations "
+        "from each subgroup centroid are scaled by that subgroup's component-wise standard deviations."
     )
 
     if not summary_df.empty:
