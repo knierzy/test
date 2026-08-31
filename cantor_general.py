@@ -1510,6 +1510,7 @@ show_subgroups = st.checkbox("Show subgroup fields", value=True)
 show_subgroup_labels = st.checkbox(
     "Show subgroup labels (first two letters)",
     value=True,
+    key="show_subgroup_labels_v2",
     help="Places the first two letters slightly above and left of the subgroup centroid to reduce overlap with sample points."
 )
 show_gray_grid = st.checkbox("Show gray Cantor grid", value=True)
@@ -2002,7 +2003,7 @@ if show_subgroups and generated_subgroups:
         color_map=active_subgroup_color_map
     )
 
-    if show_subgroup_labels:
+    if show_subgroup_labels and not has_samples:
         for i, sg in enumerate(nonempty_subgroups):
             pts = sg["points"]
             if pts.empty:
@@ -2210,8 +2211,9 @@ if has_samples:
                     title=dict(
                         text=classification_distance_title,
                         side="right",
-                        font=dict(size=11)
+                        font=dict(size=13, color="black")
                     ),
+                    tickfont=dict(size=12, color="black"),
                     thickness=20
                 )
             ),
@@ -2237,6 +2239,43 @@ if has_samples:
             showlegend=False
         )
     )
+
+    # 4) Subgroup abbreviations on the topmost plot layer.
+    # Draw these AFTER the sample markers so the labels remain visible.
+    if show_subgroup_labels and show_subgroups:
+        for sg in [g for g in generated_subgroups if not g["points"].empty]:
+            pts = sg["points"]
+
+            x_min = float(pts["x"].min())
+            x_max = float(pts["x"].max())
+            y_min = float(pts["y"].min())
+            y_max = float(pts["y"].max())
+
+            x_span = max(x_max - x_min, 1.0)
+            y_span = max(y_max - y_min, 1.0)
+
+            label_x = float(pts["x"].mean()) - 0.08 * x_span
+            label_y = float(pts["y"].mean()) + 0.18 * y_span
+
+            label_x = min(max(label_x, x_min + 0.10 * x_span), x_max - 0.10 * x_span)
+            label_y = min(max(label_y, y_min + 0.10 * y_span), y_max - 0.10 * y_span)
+
+            letters = "".join(ch for ch in str(sg["name"]) if ch.isalpha())
+            short_label = (letters[:2] if len(letters) >= 2 else letters).upper()
+
+            fig.add_trace(
+                go.Scatter(
+                    x=[label_x],
+                    y=[label_y],
+                    mode="text",
+                    text=[f"<b>{short_label}</b>"],
+                    textposition="middle center",
+                    textfont=dict(size=20, color="black", family="Arial Black"),
+                    hoverinfo="skip",
+                    showlegend=False,
+                    legendgroup=sg["name"]
+                )
+            )
 
     # 4) Small black centre point
     fig.add_trace(
