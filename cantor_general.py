@@ -1422,7 +1422,7 @@ show_subgroups = st.checkbox("Show subgroup fields", value=True)
 show_subgroup_labels = st.checkbox(
     "Show subgroup labels (first two letters)",
     value=True,
-    help="Places the first two letters of each subgroup name at the center of its generated field."
+    help="Places the first two letters slightly above and left of the subgroup centroid to reduce overlap with sample points."
 )
 show_gray_grid = st.checkbox("Show gray Cantor grid", value=True)
 show_overlap_hatching = st.checkbox(
@@ -1885,9 +1885,23 @@ if show_subgroups and generated_subgroups:
             if pts.empty:
                 continue
 
-            # Use the centroid of all valid generated compositions as label position.
-            label_x = float(pts["x"].mean())
-            label_y = float(pts["y"].mean())
+            # Start from the centroid, then shift the abbreviation slightly
+            # toward the upper-left part of the subgroup field. This reduces
+            # collisions with sample points, which often lie near the centroid.
+            x_min = float(pts["x"].min())
+            x_max = float(pts["x"].max())
+            y_min = float(pts["y"].min())
+            y_max = float(pts["y"].max())
+
+            x_span = max(x_max - x_min, 1.0)
+            y_span = max(y_max - y_min, 1.0)
+
+            label_x = float(pts["x"].mean()) - 0.08 * x_span
+            label_y = float(pts["y"].mean()) + 0.18 * y_span
+
+            # Keep the label safely inside the subgroup bounding box.
+            label_x = min(max(label_x, x_min + 0.10 * x_span), x_max - 0.10 * x_span)
+            label_y = min(max(label_y, y_min + 0.10 * y_span), y_max - 0.10 * y_span)
 
             # First two alphabetic characters of the subgroup name, upper case.
             letters = "".join(ch for ch in str(sg["name"]) if ch.isalpha())
