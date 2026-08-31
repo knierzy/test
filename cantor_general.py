@@ -657,7 +657,7 @@ def build_dynamic_axis_titles(labels):
 
     x_size = dynamic_axis_font_size(
         x_title,
-        base_size=35,
+        base_size=28,
         min_size=14
     )
     y_size = dynamic_axis_font_size(
