@@ -1511,7 +1511,7 @@ show_subgroup_labels = st.checkbox(
     "Show subgroup labels (first two letters)",
     value=True,
     key="show_subgroup_labels_v2",
-    help="Places the first two letters slightly above and left of the subgroup centroid to reduce overlap with sample points."
+    help="Places the first two letters in the upper part of each subgroup field using a height-dependent, limited vertical offset to reduce overlap with sample points."
 )
 show_gray_grid = st.checkbox("Show gray Cantor grid", value=True)
 show_overlap_hatching = st.checkbox(
@@ -2021,11 +2021,23 @@ if show_subgroups and generated_subgroups:
             y_span = max(y_max - y_min, 1.0)
 
             label_x = float(pts["x"].mean()) - 0.08 * x_span
-            label_y = float(pts["y"].mean()) + 0.18 * y_span
 
-            # Keep the label safely inside the subgroup bounding box.
+            # Dynamic vertical placement: move the abbreviation toward the upper
+            # part of the subgroup field so it is less likely to overlap sample
+            # points near the centroid. The displacement scales with field height,
+            # but is limited so labels remain visually attached to their subgroup.
+            y_offset = float(np.clip(0.20 * y_span, 0.8, 2.5))
+            label_y = float(pts["y"].mean()) + y_offset
+
+            # Prefer the upper part of the field. For very shallow subgroups the
+            # label may sit only slightly above the field (max. 0.6 y-units), which
+            # improves readability without making the assignment ambiguous.
+            label_y = max(label_y, y_min + 0.72 * y_span)
+
+            # Keep horizontal placement safely within the subgroup. Vertically,
+            # allow only a very small excursion beyond the upper edge.
             label_x = min(max(label_x, x_min + 0.10 * x_span), x_max - 0.10 * x_span)
-            label_y = min(max(label_y, y_min + 0.10 * y_span), y_max - 0.10 * y_span)
+            label_y = min(max(label_y, y_min + 0.10 * y_span), y_max + 0.60)
 
             # First two alphabetic characters of the subgroup name, upper case.
             letters = "".join(ch for ch in str(sg["name"]) if ch.isalpha())
@@ -2255,10 +2267,23 @@ if has_samples:
             y_span = max(y_max - y_min, 1.0)
 
             label_x = float(pts["x"].mean()) - 0.08 * x_span
-            label_y = float(pts["y"].mean()) + 0.18 * y_span
 
+            # Dynamic vertical placement: move the abbreviation toward the upper
+            # part of the subgroup field so it is less likely to overlap sample
+            # points near the centroid. The displacement scales with field height,
+            # but is limited so labels remain visually attached to their subgroup.
+            y_offset = float(np.clip(0.20 * y_span, 0.8, 2.5))
+            label_y = float(pts["y"].mean()) + y_offset
+
+            # Prefer the upper part of the field. For very shallow subgroups the
+            # label may sit only slightly above the field (max. 0.6 y-units), which
+            # improves readability without making the assignment ambiguous.
+            label_y = max(label_y, y_min + 0.72 * y_span)
+
+            # Keep horizontal placement safely within the subgroup. Vertically,
+            # allow only a very small excursion beyond the upper edge.
             label_x = min(max(label_x, x_min + 0.10 * x_span), x_max - 0.10 * x_span)
-            label_y = min(max(label_y, y_min + 0.10 * y_span), y_max - 0.10 * y_span)
+            label_y = min(max(label_y, y_min + 0.10 * y_span), y_max + 0.60)
 
             letters = "".join(ch for ch in str(sg["name"]) if ch.isalpha())
             short_label = (letters[:2] if len(letters) >= 2 else letters).upper()
