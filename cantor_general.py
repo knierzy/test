@@ -2207,7 +2207,11 @@ if has_samples:
                 opacity=0.95,
                 line=dict(width=0),
                 colorbar=dict(
-                    title=classification_distance_title,
+                    title=dict(
+                        text=classification_distance_title,
+                        side="right",
+                        font=dict(size=11)
+                    ),
                     thickness=20
                 )
             ),
