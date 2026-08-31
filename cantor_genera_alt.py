@@ -241,7 +241,7 @@ def rgba_with_alpha(color, alpha):
 
 def add_subgroup_fields(fig, subgroup_results, hull_width=1.0, subfield_width=1.0, color_map=None):
     """
-    Draw subgroup fields as colored rectangular outlines only.
+    Draw subgroup fields as translucent colored rectangles with matching colored outlines.
 
     For every AB slice, the valid constrained Cartesian-product compositions
     define a rectangular subfield in the final Cantor-grid coordinates.
@@ -254,12 +254,16 @@ def add_subgroup_fields(fig, subgroup_results, hull_width=1.0, subfield_width=1.
 
         color = (color_map or {}).get(sg["name"], SUBGROUP_COLORS[idx % len(SUBGROUP_COLORS)])
 
-        # Softer garnet-style subgroup appearance:
-        # subtle fill, moderately transparent subfield outline,
-        # and an even softer dashed outer hull.
-        fill = rgba_with_alpha(color, 0.12)
-        subfield_line_color = rgba_with_alpha(color, 0.70)
-        hull_line_color = rgba_with_alpha(color, 0.60)
+        # Subgroup rectangles use the exact color assigned by the active
+        # color scale. The fill is translucent so the Cantor grid remains
+        # visible; the rectangle boundary uses the SAME color with higher
+        # opacity, making it appear slightly more intense without adding
+        # any black/dark contour.
+        fill = rgba_with_alpha(color, 0.28)
+        subfield_line_color = rgba_with_alpha(color, 0.95)
+
+        # The outer convex hull is a solid black line.
+        hull_line_color = "black"
 
         first_trace = True
 
@@ -319,7 +323,7 @@ def add_subgroup_fields(fig, subgroup_results, hull_width=1.0, subfield_width=1.
                     x=hull_x,
                     y=hull_y,
                     mode="lines",
-                    line=dict(color=hull_line_color, width=hull_width, dash="dash"),
+                    line=dict(color=hull_line_color, width=hull_width),
                     fill=None,
                     hoverinfo="skip",
                     legendgroup=sg["name"],
@@ -332,7 +336,7 @@ def add_subgroup_fields(fig, subgroup_results, hull_width=1.0, subfield_width=1.
                     x=[hull[0][0], hull[1][0]],
                     y=[hull[0][1], hull[1][1]],
                     mode="lines",
-                    line=dict(color=hull_line_color, width=hull_width, dash="dash"),
+                    line=dict(color=hull_line_color, width=hull_width),
                     hoverinfo="skip",
                     legendgroup=sg["name"],
                     showlegend=False
@@ -482,6 +486,11 @@ def add_overlap_hatching(
 
     Each AB slice is treated separately.
     No neighbouring overlap rectangles are connected into larger polygons.
+
+    The overlap itself is drawn in red. In addition, a thin black X is drawn
+    across the centre of every true overlap rectangle. The X is constructed
+    from two independent line traces so its length and thickness can be
+    controlled separately.
     """
 
     valid = [
@@ -497,9 +506,7 @@ def add_overlap_hatching(
     # --------------------------------------------------------
     # Pairwise subgroup comparison
     # --------------------------------------------------------
-
     for i in range(len(valid)):
-
         for j in range(i + 1, len(valid)):
 
             name_a = valid[i]["name"]
@@ -508,10 +515,9 @@ def add_overlap_hatching(
             rects_a = rect_maps[name_a]
             rects_b = rect_maps[name_b]
 
-            # Only AB slices that exist in BOTH groups
+            # Only AB slices that exist in BOTH groups.
             common_abs = sorted(
-                set(rects_a.keys())
-                .intersection(rects_b.keys())
+                set(rects_a.keys()).intersection(rects_b.keys())
             )
 
             for ab in common_abs:
@@ -519,60 +525,96 @@ def add_overlap_hatching(
                 ax0, ax1, ay0, ay1 = rects_a[ab]
                 bx0, bx1, by0, by1 = rects_b[ab]
 
-                # ------------------------------------------------
-                # TRUE rectangle intersection
-                # ------------------------------------------------
-
+                # TRUE rectangle intersection.
                 x0 = max(ax0, bx0)
                 x1 = min(ax1, bx1)
-
                 y0 = max(ay0, by0)
                 y1 = min(ay1, by1)
 
-                # No geometric overlap
                 if x1 <= x0 or y1 <= y0:
                     continue
 
                 # ------------------------------------------------
-                # Draw ONLY this individual overlap rectangle
+                # Red overlap rectangle
                 # ------------------------------------------------
-
                 fig.add_trace(
                     go.Scatter(
-                        x=[
-                            x0,
-                            x1,
-                            x1,
-                            x0,
-                            x0
-                        ],
-                        y=[
-                            y0,
-                            y0,
-                            y1,
-                            y1,
-                            y0
-                        ],
-
+                        x=[x0, x1, x1, x0, x0],
+                        y=[y0, y0, y1, y1, y0],
                         mode="lines",
-
                         line=dict(
                             color=f"rgba(170,0,0,{outline_alpha})",
                             width=outline_width
                         ),
-
                         fill="toself",
-
-                        fillcolor=(
-                            f"rgba(255,0,0,{fill_alpha})"
-                        ),
-
+                        fillcolor=f"rgba(255,0,0,{fill_alpha})",
                         hoverinfo="skip",
                         showlegend=False,
-
                         name=(
-                            f"Overlap: "
-                            f"{name_a} – {name_b}, "
+                            f"Overlap: {name_a} – {name_b}, "
+                            f"AB={ab}"
+                        )
+                    )
+                )
+
+                # ------------------------------------------------
+                # Thin black X across the overlap
+                # ------------------------------------------------
+                cross_x = (x0 + x1) / 2.0
+                cross_y = (y0 + y1) / 2.0
+
+                # Length and thickness are independent.
+                # These values are intentionally larger than the narrow
+                # overlap slices so the X may extend beyond the red subfield.
+                cross_half_x = 35.0
+                cross_half_y = 0.65
+                cross_width = 1.2
+
+                # Diagonal: bottom-left -> top-right
+                fig.add_trace(
+                    go.Scatter(
+                        x=[
+                            cross_x - cross_half_x,
+                            cross_x + cross_half_x
+                        ],
+                        y=[
+                            cross_y - cross_half_y,
+                            cross_y + cross_half_y
+                        ],
+                        mode="lines",
+                        line=dict(
+                            color="black",
+                            width=cross_width
+                        ),
+                        hoverinfo="skip",
+                        showlegend=False,
+                        name=(
+                            f"Overlap cross 1: {name_a} – {name_b}, "
+                            f"AB={ab}"
+                        )
+                    )
+                )
+
+                # Diagonal: top-left -> bottom-right
+                fig.add_trace(
+                    go.Scatter(
+                        x=[
+                            cross_x - cross_half_x,
+                            cross_x + cross_half_x
+                        ],
+                        y=[
+                            cross_y + cross_half_y,
+                            cross_y - cross_half_y
+                        ],
+                        mode="lines",
+                        line=dict(
+                            color="black",
+                            width=cross_width
+                        ),
+                        hoverinfo="skip",
+                        showlegend=False,
+                        name=(
+                            f"Overlap cross 2: {name_a} – {name_b}, "
                             f"AB={ab}"
                         )
                     )
@@ -1341,25 +1383,30 @@ with pc1:
 with pc2:
     colorscale = st.selectbox(
         "Sample color scale",
-        ["Viridis", "Plasma","Turbo", "Inferno", "Cividis", "RdYlBu","YlOrRd"]
+        ["Viridis", "Plasma", "Turbo", "Rainbow", "Jet", "HSV",
+           "Inferno", "Cividis", "RdYlBu", "YlOrRd"]
     )
 with pc3:
     subgroup_hull_width = st.slider(
         "Subgroup convex hull line width",
         min_value=0.2,
         max_value=5.0,
-        value=3.0,
+        value=1.0,
         step=0.1,
         help="Controls the thickness of the dashed outer convex-hull line around each subgroup."
     )
 with pc4:
     subgroup_subfield_width = st.slider(
         "Subfield boundary line width",
-        min_value=0.2,
-        max_value=10.0,
+        min_value=0.1,
+        max_value=5.0,
         value=3.0,
         step=0.1,
-        help="Controls the thickness of the colored boundary line around each individual scattered subfield."
+        help=(
+            "Controls the thickness of the boundary around each individual "
+            "AB/CD subfield. The boundary uses the same color as the subgroup "
+            "fill, but with higher opacity."
+        )
     )
 
 legend_scale = st.slider(
