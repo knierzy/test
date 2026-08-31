@@ -1770,8 +1770,21 @@ if has_samples:
 
     # In-plot classification box: same compact layout as the distance-only view.
     # The selected metric is the heading; locality follows directly below.
+    # For Mahalanobis, keep the main title large but render the explanatory
+    # parenthetical smaller so it stays comfortably inside the statistics box.
+    if distance_metric == "Mahalanobis":
+        covariance_fs = max(10, int(title_fs * 0.58))
+        classification_heading_html = (
+            f"<span style='font-size:{title_fs}px; font-weight:bold;'>Mahalanobis distance</span> "
+            f"<span style='font-size:{covariance_fs}px; font-weight:normal;'>(diagonal covariance)</span>"
+        )
+    else:
+        classification_heading_html = (
+            f"<span style='font-size:{title_fs}px; font-weight:bold;'>{classification_distance_title}</span>"
+        )
+
     stats_legend_text = (
-        f"<span style='font-size:{title_fs}px; font-weight:bold;'>{classification_distance_title}</span><br>"
+        f"{classification_heading_html}<br>"
         f"<span style='font-size:{locality_fs}px;'>Locality: {first_locality}</span><br><br>"
     )
 
