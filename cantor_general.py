@@ -1719,7 +1719,6 @@ if has_samples:
     legend_height_px = (
         padding_top_px
         + title_line_px
-        + 2 * method_line_px
         + gap_after_methods_px
         + locality_line_px
         + gap_before_groups_px
@@ -1753,9 +1752,7 @@ if has_samples:
     ]
 
     longest_entry_chars = max(
-        [len("Subgroup Classification"),
-         len(f"Classification -> {classification_distance_title}"),
-         len(f"({classification_method_note})"),
+        [len(classification_distance_title),
          len(f"Locality: {first_locality}"),
          len("Subgroup field overlap (shared area as % of each field)")]
         + [len(x) for x in complete_entries]
@@ -1771,11 +1768,10 @@ if has_samples:
     legend_x0 = 0.015
     legend_x1 = min(0.92, legend_x0 + legend_width)
 
-    # Build in-plot statistical summary text exactly in the style of the garnet application
+    # In-plot classification box: same compact layout as the distance-only view.
+    # The selected metric is the heading; locality follows directly below.
     stats_legend_text = (
-        f"<span style='font-size:{title_fs}px; font-weight:bold;'>Subgroup Classification</span><br>"
-        f"<span style='font-size:{method_fs}px; font-style:italic;'>Classification -> {classification_distance_title}</span><br>"
-        f"<span style='font-size:{method_fs}px; font-style:italic;'>({classification_method_note})</span><br><br>"
+        f"<span style='font-size:{title_fs}px; font-weight:bold;'>{classification_distance_title}</span><br>"
         f"<span style='font-size:{locality_fs}px;'>Locality: {first_locality}</span><br><br>"
     )
 
