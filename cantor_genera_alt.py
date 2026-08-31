@@ -929,6 +929,62 @@ def classify_diagonal_mahalanobis(df_input, subgroup_results):
     return df_input, means, sigmas
 
 
+def classify_by_selected_distance(
+    df_input,
+    subgroup_results,
+    distance_metric="Aitchison",
+    aitchison_zero_replacement=0.5
+):
+    """
+    Assign every sample composition to the closest subgroup centroid using
+    the SAME distance metric selected in the plot settings.
+
+    Supported metrics:
+    - Aitchison: CLR geometry after multiplicative zero replacement
+    - Log-Euclidean: Euclidean distance after ln(x + 1) transformation
+
+    This keeps sample-based classification consistent with the subgroup
+    distance representation used when no sample points are plotted.
+    """
+    means, sigmas = subgroup_statistics_from_generated(subgroup_results)
+
+    labels_out = []
+    distances_out = []
+
+    if not means:
+        df_input["Nearest_Subfield"] = "Unclassified"
+        df_input["Classification_Distance"] = np.nan
+        return df_input, means, sigmas
+
+    X = df_input[["A", "B", "C", "D"]].astype(float).to_numpy()
+
+    for x in X:
+        best_label = None
+        best_distance = np.inf
+
+        for name, mu in means.items():
+            if distance_metric == "Aitchison":
+                d = aitchison_distance(
+                    x,
+                    mu,
+                    zero_replacement=aitchison_zero_replacement
+                )
+            else:
+                d = log_euclidean_distance(x, mu)
+
+            if np.isfinite(d) and d < best_distance:
+                best_distance = d
+                best_label = name
+
+        labels_out.append(best_label if best_label is not None else "Unclassified")
+        distances_out.append(best_distance if np.isfinite(best_distance) else np.nan)
+
+    df_input["Nearest_Subfield"] = labels_out
+    df_input["Classification_Distance"] = distances_out
+
+    return df_input, means, sigmas
+
+
 def classification_summary(df_input, subgroup_results):
     """
     Return count and percentage for every defined subgroup.
@@ -1422,7 +1478,7 @@ show_subgroups = st.checkbox("Show subgroup fields", value=True)
 show_subgroup_labels = st.checkbox(
     "Show subgroup labels (first two letters)",
     value=True,
-    help="Places the first two letters of each subgroup name at the center of its generated field."
+    help="Places the first two letters slightly above and left of the subgroup centroid to reduce overlap with sample points."
 )
 show_gray_grid = st.checkbox("Show gray Cantor grid", value=True)
 show_overlap_hatching = st.checkbox(
@@ -1505,9 +1561,20 @@ if has_samples:
     subgroup_reference_distances = {}
     subgroup_distance_color_map = {}
 
-    df, subgroup_means, subgroup_sigmas = classify_diagonal_mahalanobis(
+    # Classify samples with the SAME metric selected above for subgroup distances.
+    df, subgroup_means, subgroup_sigmas = classify_by_selected_distance(
         df,
-        generated_subgroups
+        generated_subgroups,
+        distance_metric=distance_metric,
+        aitchison_zero_replacement=aitchison_zero_replacement
+    )
+
+    classification_distance_title = distance_title
+    classification_distance_column = "Classification_Distance"
+    classification_method_note = (
+        f"CLR geometry; multiplicative zero replacement δ={aitchison_zero_replacement:.2f}%"
+        if distance_metric == "Aitchison"
+        else "ln(x + 1) transformed Euclidean geometry"
     )
 
     df["Inside_Range_Field"] = df.apply(
@@ -1640,8 +1707,8 @@ if has_samples:
 
     longest_entry_chars = max(
         [len("Subgroup Classification"),
-         len("Classification -> Mahalanobis distance"),
-         len("(diagonal covariance approximation)"),
+         len(f"Classification -> {classification_distance_title}"),
+         len(f"({classification_method_note})"),
          len(f"Locality: {first_locality}"),
          len("Subgroup field overlap (shared area as % of each field)")]
         + [len(x) for x in complete_entries]
@@ -1660,8 +1727,8 @@ if has_samples:
     # Build in-plot statistical summary text exactly in the style of the garnet application
     stats_legend_text = (
         f"<span style='font-size:{title_fs}px; font-weight:bold;'>Subgroup Classification</span><br>"
-        f"<span style='font-size:{method_fs}px; font-style:italic;'>Classification -> Mahalanobis distance</span><br>"
-        f"<span style='font-size:{method_fs}px; font-style:italic;'>(diagonal covariance approximation)</span><br><br>"
+        f"<span style='font-size:{method_fs}px; font-style:italic;'>Classification -> {classification_distance_title}</span><br>"
+        f"<span style='font-size:{method_fs}px; font-style:italic;'>({classification_method_note})</span><br><br>"
         f"<span style='font-size:{locality_fs}px;'>Locality: {first_locality}</span><br><br>"
     )
 
@@ -1885,9 +1952,23 @@ if show_subgroups and generated_subgroups:
             if pts.empty:
                 continue
 
-            # Use the centroid of all valid generated compositions as label position.
-            label_x = float(pts["x"].mean())
-            label_y = float(pts["y"].mean())
+            # Start from the centroid, then shift the abbreviation slightly
+            # toward the upper-left part of the subgroup field. This reduces
+            # collisions with sample points, which often lie near the centroid.
+            x_min = float(pts["x"].min())
+            x_max = float(pts["x"].max())
+            y_min = float(pts["y"].min())
+            y_max = float(pts["y"].max())
+
+            x_span = max(x_max - x_min, 1.0)
+            y_span = max(y_max - y_min, 1.0)
+
+            label_x = float(pts["x"].mean()) - 0.08 * x_span
+            label_y = float(pts["y"].mean()) + 0.18 * y_span
+
+            # Keep the label safely inside the subgroup bounding box.
+            label_x = min(max(label_x, x_min + 0.10 * x_span), x_max - 0.10 * x_span)
+            label_y = min(max(label_y, y_min + 0.10 * y_span), y_max - 0.10 * y_span)
 
             # First two alphabetic characters of the subgroup name, upper case.
             letters = "".join(ch for ch in str(sg["name"]) if ch.isalpha())
@@ -1994,14 +2075,14 @@ if has_samples:
             f"{labels[2]}: {c:.0f}%<br>"
             f"{labels[3]}: {d:.0f}%<br>"
             f"Nearest subgroup: {sg}<br>"
-            f"Mahalanobis distance: {dist:.3f}<br>"
+            f"{classification_distance_title}: {dist:.3f}<br>"
             f"Inside defined range field: {inside}"
         )
         for loc, a, b, c, d, sg, dist, inside in zip(
             df["Locality"],
             df["A"], df["B"], df["C"], df["D"],
             df["Subgroup"],
-            df["Mahalanobis_Distance"],
+            df[classification_distance_column],
             df["Inside_Range_Field"]
         )
     ]
@@ -2009,7 +2090,7 @@ if has_samples:
     # ========================================================
     # Layered sample markers
     # Outer ring = continuous colorbar value A / (A+B)
-    # Inner core = nearest subgroup from minimum Mahalanobis distance
+    # Inner core = nearest subgroup from the minimum selected classification distance
     # ========================================================
 
     subgroup_color_map = {
@@ -2070,7 +2151,7 @@ if has_samples:
         )
     )
 
-    # 3) Inner core: color of nearest subgroup by Mahalanobis distance
+    # 3) Inner core: color of nearest subgroup by selected classification distance
     fig.add_trace(
         go.Scatter(
             x=df["x"], y=df["y"],
@@ -2274,10 +2355,9 @@ if has_samples:
     st.subheader("Distance-based subgroup classification")
 
     st.caption(
-        "Classification -> Mahalanobis distance using a diagonal "
-        "covariance approximation. Subgroup means and standard deviations "
-        "are calculated from the valid integer compositions generated from "
-        "the specified subgroup ranges."
+        f"Classification -> {classification_distance_title}. "
+        f"{classification_method_note}. Each sample is assigned to the subgroup "
+        "whose generated-composition centroid has the smallest selected distance."
     )
 
     if not summary_df.empty:
@@ -2301,21 +2381,22 @@ if has_samples:
                 f"{labels[3]} SD": round(float(sigma[3]), 2),
             })
 
-        with st.expander("Show subgroup means and standard deviations"):
+        with st.expander("Show subgroup centroid components and standard deviations"):
             st.dataframe(pd.DataFrame(stats_rows), use_container_width=True)
 
     st.subheader("Normalized uploaded data")
     display_df = df[
         [
             "Locality", "A", "B", "C", "D",
-            "Subgroup", "Mahalanobis_Distance", "Inside_Range_Field"
+            "Subgroup", classification_distance_column, "Inside_Range_Field"
         ]
     ].rename(
         columns={
             "A": labels[0],
             "B": labels[1],
             "C": labels[2],
-            "D": labels[3]
+            "D": labels[3],
+            classification_distance_column: classification_distance_title
         }
     )
     st.dataframe(display_df, use_container_width=False)
