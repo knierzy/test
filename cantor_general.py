@@ -2446,8 +2446,6 @@ st.plotly_chart(fig, use_container_width=True)
 
 st.subheader("Export figure")
 
-st.subheader("Export figure")
-
 try:
     img_bytes = fig.to_image(
         format="png",
