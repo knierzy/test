@@ -649,7 +649,7 @@ def build_dynamic_axis_titles(labels):
     Both titles remain on a single line. Long parameter names are handled
     automatically by reducing the corresponding axis-title font size.
     """
-    x_title = f"{labels[0]}+{labels[1]} / {labels[2]}+{labels[3]} (%)"
+    x_title = f"{labels[0]}+{labels[1]} /// {labels[2]}+{labels[3]} (%)"
     y_title = (
         f"{labels[2]} (%) /// {labels[3]} (%) = "
         f"grid height − {labels[2]} (%)"
