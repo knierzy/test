@@ -2446,38 +2446,27 @@ st.plotly_chart(fig, use_container_width=True)
 
 st.subheader("Export figure")
 
-export_format = st.selectbox(
-    "Export format",
-    ["PNG", "SVG"],
-    key="cantor_export_format"
-)
+st.subheader("Export figure")
 
 try:
     img_bytes = fig.to_image(
-        format=export_format.lower(),
+        format="png",
         width=PLOT_WIDTH,
         height=PLOT_HEIGHT,
         scale=2
     )
 
-    if export_format == "PNG":
-        file_extension = "png"
-        mime_type = "image/png"
-    else:
-        file_extension = "svg"
-        mime_type = "image/svg+xml"
-
     st.download_button(
-        label=f"Download {export_format}",
+        label="Download PNG",
         data=img_bytes,
-        file_name=f"cantor_grid.{file_extension}",
-        mime=mime_type
+        file_name="cantor_grid.png",
+        mime="image/png"
     )
 
 except Exception as exc:
     st.warning(
         "Figure export is currently unavailable. "
-        "For PNG/SVG export, make sure Kaleido is installed. "
+        "For PNG export, make sure Kaleido is installed. "
         f"Details: {exc}"
     )
 
