@@ -4,4 +4,4 @@ plotly
 numpy
 scipy
 openpyxl
-kaleido
+kaleido>=1.0.0
