@@ -2309,7 +2309,7 @@ if has_samples:
                     mode="text",
                     text=[f"<b>{short_label}</b>"],
                     textposition="middle center",
-                    textfont=dict(size=20, color="black", family="Arial Black"),
+                    textfont=dict( size=subgroup_label_size,color="black",family="Arial Black"),
                     hoverinfo="skip",
                     showlegend=False,
                     legendgroup=sg["name"]
