@@ -8,7 +8,7 @@ import streamlit as st
 st.set_page_config(layout="wide", page_title="Cantor Grids")
 
 st.title("Cantor Grids – Four-Parameter Compositional Visualization")
-st.caption("Build: V35 — matched Explorer/export dimensions")
+st.caption("Build: V36 — Aitchison / Log-Euclidean subgroup distance choice")
 st.caption(
     "Define four compositional parameters, create subgroup fields from parameter ranges, "
     "and optionally add sample points manually or from Excel."
@@ -241,7 +241,7 @@ def rgba_with_alpha(color, alpha):
 
 def add_subgroup_fields(fig, subgroup_results, hull_width=1.0, subfield_width=1.0, color_map=None):
     """
-    Draw subgroup fields as colored rectangular outlines only.
+    Draw subgroup fields as translucent colored rectangles with matching colored outlines.
 
     For every AB slice, the valid constrained Cartesian-product compositions
     define a rectangular subfield in the final Cantor-grid coordinates.
@@ -253,7 +253,18 @@ def add_subgroup_fields(fig, subgroup_results, hull_width=1.0, subfield_width=1.
             continue
 
         color = (color_map or {}).get(sg["name"], SUBGROUP_COLORS[idx % len(SUBGROUP_COLORS)])
-        fill = rgba_with_alpha(color, 0.25)
+
+        # Subgroup rectangles use the exact color assigned by the active
+        # color scale. The fill is translucent so the Cantor grid remains
+        # visible; the rectangle boundary uses the SAME color with higher
+        # opacity, making it appear slightly more intense without adding
+        # any black/dark contour.
+        fill = rgba_with_alpha(color, 0.28)
+        subfield_line_color = rgba_with_alpha(color, 0.95)
+
+        # The outer convex hull is a solid black line.
+        hull_line_color = "black"
+
         first_trace = True
 
         for ab, group in pts.groupby("AB"):
@@ -282,7 +293,7 @@ def add_subgroup_fields(fig, subgroup_results, hull_width=1.0, subfield_width=1.
                     x=[x_min, x_min, x_max, x_max, x_min],
                     y=[y_min, y_max, y_max, y_min, y_min],
                     mode="lines",
-                    line=dict(color=color, width=subfield_width),
+                    line=dict(color=subfield_line_color, width=subfield_width),
                     fill="toself",
                     fillcolor=fill,
                     name=sg["name"],
@@ -312,7 +323,7 @@ def add_subgroup_fields(fig, subgroup_results, hull_width=1.0, subfield_width=1.
                     x=hull_x,
                     y=hull_y,
                     mode="lines",
-                    line=dict(color=color, width=hull_width, dash="dash"),
+                    line=dict(color=hull_line_color, width=hull_width),
                     fill=None,
                     hoverinfo="skip",
                     legendgroup=sg["name"],
@@ -325,7 +336,7 @@ def add_subgroup_fields(fig, subgroup_results, hull_width=1.0, subfield_width=1.
                     x=[hull[0][0], hull[1][0]],
                     y=[hull[0][1], hull[1][1]],
                     mode="lines",
-                    line=dict(color=color, width=hull_width, dash="dash"),
+                    line=dict(color=hull_line_color, width=hull_width),
                     hoverinfo="skip",
                     legendgroup=sg["name"],
                     showlegend=False
@@ -459,6 +470,157 @@ def calculate_subgroup_field_overlaps(subgroup_results):
     )
 
 
+def add_overlap_hatching(
+    fig,
+    subgroup_results,
+    hatch_spacing=0.65,      # kept for compatibility
+    hatch_alpha=0.70,        # kept for compatibility
+    hatch_width=1.60,        # kept for compatibility
+    outline_alpha=1.0,
+    outline_width=2.8,
+    fill_alpha=1.0
+):
+    """
+    Highlight ONLY the true geometric intersections of the individual
+    subgroup rectangles.
+
+    Each AB slice is treated separately.
+    No neighbouring overlap rectangles are connected into larger polygons.
+
+    The overlap itself is drawn in red. In addition, a thin black X is drawn
+    across the centre of every true overlap rectangle. The X is constructed
+    from two independent line traces so its length and thickness can be
+    controlled separately.
+    """
+
+    valid = [
+        sg for sg in subgroup_results
+        if not sg["points"].empty
+    ]
+
+    rect_maps = {
+        sg["name"]: subgroup_rectangles_by_ab(sg)
+        for sg in valid
+    }
+
+    # --------------------------------------------------------
+    # Pairwise subgroup comparison
+    # --------------------------------------------------------
+    for i in range(len(valid)):
+        for j in range(i + 1, len(valid)):
+
+            name_a = valid[i]["name"]
+            name_b = valid[j]["name"]
+
+            rects_a = rect_maps[name_a]
+            rects_b = rect_maps[name_b]
+
+            # Only AB slices that exist in BOTH groups.
+            common_abs = sorted(
+                set(rects_a.keys()).intersection(rects_b.keys())
+            )
+
+            for ab in common_abs:
+
+                ax0, ax1, ay0, ay1 = rects_a[ab]
+                bx0, bx1, by0, by1 = rects_b[ab]
+
+                # TRUE rectangle intersection.
+                x0 = max(ax0, bx0)
+                x1 = min(ax1, bx1)
+                y0 = max(ay0, by0)
+                y1 = min(ay1, by1)
+
+                if x1 <= x0 or y1 <= y0:
+                    continue
+
+                # ------------------------------------------------
+                # Red overlap rectangle
+                # ------------------------------------------------
+                fig.add_trace(
+                    go.Scatter(
+                        x=[x0, x1, x1, x0, x0],
+                        y=[y0, y0, y1, y1, y0],
+                        mode="lines",
+                        line=dict(
+                            color=f"rgba(170,0,0,{outline_alpha})",
+                            width=outline_width
+                        ),
+                        fill="toself",
+                        fillcolor=f"rgba(255,0,0,{fill_alpha})",
+                        hoverinfo="skip",
+                        showlegend=False,
+                        name=(
+                            f"Overlap: {name_a} – {name_b}, "
+                            f"AB={ab}"
+                        )
+                    )
+                )
+
+                # ------------------------------------------------
+                # Thin black X across the overlap
+                # ------------------------------------------------
+                cross_x = (x0 + x1) / 2.0
+                cross_y = (y0 + y1) / 2.0
+
+                # Length and thickness are independent.
+                # These values are intentionally larger than the narrow
+                # overlap slices so the X may extend beyond the red subfield.
+                cross_half_x = 35.0
+                cross_half_y = 0.65
+                cross_width = 1.2
+
+                # Diagonal: bottom-left -> top-right
+                fig.add_trace(
+                    go.Scatter(
+                        x=[
+                            cross_x - cross_half_x,
+                            cross_x + cross_half_x
+                        ],
+                        y=[
+                            cross_y - cross_half_y,
+                            cross_y + cross_half_y
+                        ],
+                        mode="lines",
+                        line=dict(
+                            color="black",
+                            width=cross_width
+                        ),
+                        hoverinfo="skip",
+                        showlegend=False,
+                        name=(
+                            f"Overlap cross 1: {name_a} – {name_b}, "
+                            f"AB={ab}"
+                        )
+                    )
+                )
+
+                # Diagonal: top-left -> bottom-right
+                fig.add_trace(
+                    go.Scatter(
+                        x=[
+                            cross_x - cross_half_x,
+                            cross_x + cross_half_x
+                        ],
+                        y=[
+                            cross_y + cross_half_y,
+                            cross_y - cross_half_y
+                        ],
+                        mode="lines",
+                        line=dict(
+                            color="black",
+                            width=cross_width
+                        ),
+                        hoverinfo="skip",
+                        showlegend=False,
+                        name=(
+                            f"Overlap cross 2: {name_a} – {name_b}, "
+                            f"AB={ab}"
+                        )
+                    )
+                )
+
+
 def dynamic_axis_font_size(text, base_size, min_size):
     """
     Scale an axis-title font according to the visible title length.
@@ -487,7 +649,7 @@ def build_dynamic_axis_titles(labels):
     Both titles remain on a single line. Long parameter names are handled
     automatically by reducing the corresponding axis-title font size.
     """
-    x_title = f"Sum of {labels[0]} (%) + {labels[1]} (%)"
+    x_title = f"{labels[0]}+{labels[1]} /// {labels[2]}+{labels[3]} (%)"
     y_title = (
         f"{labels[2]} (%) /// {labels[3]} (%) = "
         f"grid height − {labels[2]} (%)"
@@ -495,7 +657,7 @@ def build_dynamic_axis_titles(labels):
 
     x_size = dynamic_axis_font_size(
         x_title,
-        base_size=35,
+        base_size=28,
         min_size=14
     )
     y_size = dynamic_axis_font_size(
@@ -562,16 +724,117 @@ def log_euclidean_distance(mu_i, mu_j):
     )
 
 
-def subgroup_reference_distance_colors(subgroup_results, colorscale, reference_name=None):
+def multiplicative_zero_replacement(comp, delta=0.5):
+    """
+    Replace zero components in a closed percentage composition multiplicatively.
+
+    Each zero receives delta percentage points. The original positive components
+    are reduced proportionally so that the total remains 100% and the ratios
+    among the originally positive components remain unchanged.
+    """
+    comp = np.asarray(comp, dtype=float)
+
+    if np.any(~np.isfinite(comp)) or np.any(comp < 0) or comp.sum() <= 0:
+        return None
+
+    comp = comp / comp.sum() * 100.0
+    zero_mask = comp <= 0
+    n_zero = int(zero_mask.sum())
+
+    if n_zero == 0:
+        return comp
+
+    delta = float(delta)
+    if not np.isfinite(delta) or delta <= 0:
+        return None
+
+    replacement_total = n_zero * delta
+    if replacement_total >= 100.0:
+        return None
+
+    positive_mask = ~zero_mask
+    positive_total = float(comp[positive_mask].sum())
+    if positive_total <= 0:
+        return None
+
+    result = comp.copy()
+    result[zero_mask] = delta
+
+    scale = (100.0 - replacement_total) / positive_total
+    result[positive_mask] = comp[positive_mask] * scale
+
+    return result
+
+
+def aitchison_distance(mu_i, mu_j, zero_replacement=0.5):
+    """
+    Aitchison distance between two four-component subgroup centroids.
+
+    Zeros are handled by multiplicative zero replacement before the centered
+    log-ratio (CLR) transformation. The replacement value is expressed in
+    percentage points and defaults to 0.5%.
+    """
+    x = multiplicative_zero_replacement(mu_i, delta=zero_replacement)
+    y = multiplicative_zero_replacement(mu_j, delta=zero_replacement)
+
+    if x is None or y is None:
+        return np.nan
+
+    def clr(comp):
+        logs = np.log(comp)
+        return logs - logs.mean()
+
+    clr_x = clr(x)
+    clr_y = clr(y)
+    return float(np.linalg.norm(clr_x - clr_y))
+
+
+def diagonal_mahalanobis_distance(x, mu, sigma):
+    """
+    Mahalanobis distance using a diagonal covariance approximation.
+    Each component deviation is scaled by the subgroup-specific standard deviation.
+    """
+    x = np.asarray(x, dtype=float)
+    mu = np.asarray(mu, dtype=float)
+    sigma = np.asarray(sigma, dtype=float)
+    sigma = np.clip(sigma, 0.5, None)
+    return float(np.sqrt(np.sum(((x - mu) / sigma) ** 2)))
+
+
+def pooled_diagonal_mahalanobis_distance(mu_i, mu_j, sigma_i, sigma_j):
+    """
+    Symmetric subgroup-to-subgroup Mahalanobis distance using a pooled
+    diagonal variance: var_pool = (sigma_i^2 + sigma_j^2) / 2.
+    """
+    mu_i = np.asarray(mu_i, dtype=float)
+    mu_j = np.asarray(mu_j, dtype=float)
+    sigma_i = np.asarray(sigma_i, dtype=float)
+    sigma_j = np.asarray(sigma_j, dtype=float)
+    pooled_sigma = np.sqrt((sigma_i ** 2 + sigma_j ** 2) / 2.0)
+    pooled_sigma = np.clip(pooled_sigma, 0.5, None)
+    return float(np.sqrt(np.sum(((mu_i - mu_j) / pooled_sigma) ** 2)))
+
+
+def subgroup_reference_distance_colors(
+    subgroup_results,
+    colorscale,
+    reference_name=None,
+    distance_metric="Aitchison",
+    aitchison_zero_replacement=0.5
+):
     """
     For plots without sample points:
     1) calculate the mean A/B/C/D composition of every subgroup,
-    2) calculate all pairwise log-Euclidean distances using ln(x + 1),
+    2) calculate all pairwise distances using the selected metric,
     3) use either a user-selected reference subgroup or, by default,
        automatically choose the subgroup with the largest mean distance
        to all other subgroups,
-    4) color every subgroup continuously by its log-Euclidean distance
-       from that reference.
+    4) color every subgroup continuously by its distance from that reference.
+
+    Supported metrics:
+    - Mahalanobis (symmetric pooled diagonal covariance approximation)
+    - Aitchison (CLR geometry with zero replacement)
+    - Log-Euclidean (ln(x + 1))
     """
     means, sigmas = subgroup_statistics_from_generated(subgroup_results)
     names = [sg["name"] for sg in subgroup_results if sg["name"] in means]
@@ -592,10 +855,22 @@ def subgroup_reference_distance_colors(subgroup_results, colorscale, reference_n
             if i == j:
                 pairwise[name_i][name_j] = 0.0
             elif name_j not in pairwise[name_i]:
-                d = log_euclidean_distance(
-                    means[name_i],
-                    means[name_j]
-                )
+                if distance_metric == "Mahalanobis":
+                    d = pooled_diagonal_mahalanobis_distance(
+                        means[name_i], means[name_j],
+                        sigmas[name_i], sigmas[name_j]
+                    )
+                elif distance_metric == "Aitchison":
+                    d = aitchison_distance(
+                        means[name_i],
+                        means[name_j],
+                        zero_replacement=aitchison_zero_replacement
+                    )
+                else:
+                    d = log_euclidean_distance(
+                        means[name_i],
+                        means[name_j]
+                    )
                 pairwise[name_i][name_j] = d
                 pairwise[name_j][name_i] = d
 
@@ -682,6 +957,62 @@ def classify_diagonal_mahalanobis(df_input, subgroup_results):
 
     df_input["Nearest_Subfield"] = labels_out
     df_input["Mahalanobis_Distance"] = distances_out
+
+    return df_input, means, sigmas
+
+
+def classify_by_selected_distance(
+    df_input,
+    subgroup_results,
+    distance_metric="Aitchison",
+    aitchison_zero_replacement=0.5
+):
+    """
+    Assign every sample composition to the closest subgroup centroid using
+    the SAME distance metric selected in the plot settings.
+
+    Supported metrics:
+    - Mahalanobis: diagonal covariance approximation using subgroup-specific SDs
+    - Aitchison: CLR geometry after multiplicative zero replacement
+    - Log-Euclidean: Euclidean distance after ln(x + 1) transformation
+    """
+    means, sigmas = subgroup_statistics_from_generated(subgroup_results)
+
+    labels_out = []
+    distances_out = []
+
+    if not means:
+        df_input["Nearest_Subfield"] = "Unclassified"
+        df_input["Classification_Distance"] = np.nan
+        return df_input, means, sigmas
+
+    X = df_input[["A", "B", "C", "D"]].astype(float).to_numpy()
+
+    for x in X:
+        best_label = None
+        best_distance = np.inf
+
+        for name, mu in means.items():
+            if distance_metric == "Mahalanobis":
+                d = diagonal_mahalanobis_distance(x, mu, sigmas[name])
+            elif distance_metric == "Aitchison":
+                d = aitchison_distance(
+                    x,
+                    mu,
+                    zero_replacement=aitchison_zero_replacement
+                )
+            else:
+                d = log_euclidean_distance(x, mu)
+
+            if np.isfinite(d) and d < best_distance:
+                best_distance = d
+                best_label = name
+
+        labels_out.append(best_label if best_label is not None else "Unclassified")
+        distances_out.append(best_distance if np.isfinite(best_distance) else np.nan)
+
+    df_input["Nearest_Subfield"] = labels_out
+    df_input["Classification_Distance"] = distances_out
 
     return df_input, means, sigmas
 
@@ -790,6 +1121,7 @@ st.header("2. Define subgroup fields")
 definition_mode = st.radio(
     "Subgroup definition mode",
     ["Manual input", "Upload Excel file"],
+    index=1,
     horizontal=True
 )
 
@@ -1139,7 +1471,8 @@ with pc1:
 with pc2:
     colorscale = st.selectbox(
         "Sample color scale",
-        ["Plasma", "Viridis", "Turbo", "Inferno", "Cividis", "RdYlBu"]
+        ["Viridis", "Plasma", "Turbo", "Rainbow", "Jet", "HSV",
+           "Inferno", "Cividis", "RdYlBu", "YlOrRd"]
     )
 with pc3:
     subgroup_hull_width = st.slider(
@@ -1153,18 +1486,22 @@ with pc3:
 with pc4:
     subgroup_subfield_width = st.slider(
         "Subfield boundary line width",
-        min_value=0.2,
+        min_value=0.1,
         max_value=5.0,
-        value=1.0,
+        value=3.0,
         step=0.1,
-        help="Controls the thickness of the black boundary line around each individual scattered subfield."
+        help=(
+            "Controls the thickness of the boundary around each individual "
+            "AB/CD subfield. The boundary uses the same color as the subgroup "
+            "fill, but with higher opacity."
+        )
     )
 
 legend_scale = st.slider(
     "Statistics box size factor",
     min_value=0.5,
     max_value=1.8,
-    value=0.8,
+    value=0.6,
     step=0.05,
     help="Scales the in-plot statistics box and text. Useful when many subgroups are defined."
 )
@@ -1172,13 +1509,68 @@ legend_scale = st.slider(
 show_subgroups = st.checkbox("Show subgroup fields", value=True)
 show_subgroup_labels = st.checkbox(
     "Show subgroup labels (first two letters)",
-    value=False,
-    help="Places the first two letters of each subgroup name at the center of its generated field."
+    value=True,
+    key="show_subgroup_labels_v2",
+    help="Places the first two letters in the upper part of each subgroup field using a height-dependent, limited vertical offset to reduce overlap with sample points."
 )
 show_gray_grid = st.checkbox("Show gray Cantor grid", value=True)
+show_overlap_hatching = st.checkbox(
+    "Highlight subgroup overlap",
+    value=True,
+    help="Adds a subtle diagonal hatch only where subgroup fields geometrically overlap."
+)
 
-# Reference subgroup for log-Euclidean distances.
-# The default keeps the original automatic behavior.
+# Multivariate distance metric. The recommended default depends on the task:
+# - without samples: Aitchison for subgroup-to-reference comparison
+# - with samples: diagonal Mahalanobis for assignment to differently dispersed fields
+samples_requested = sample_mode != "No sample points"
+metric_options = ["Mahalanobis", "Aitchison", "Log-Euclidean"]
+metric_default_index = 0 if samples_requested else 1
+metric_widget_key = (
+    "distance_metric_with_samples" if samples_requested
+    else "distance_metric_without_samples"
+)
+
+distance_metric = st.selectbox(
+    "Multivariate distance metric",
+    metric_options,
+    index=metric_default_index,
+    key=metric_widget_key,
+    help=(
+        "Default: Mahalanobis (diagonal covariance) when sample points are used, "
+        "because subgroup-specific spread is considered during classification. "
+        "Default: Aitchison when only subgroup fields are compared relative to a reference. "
+        "You can override the default in either mode."
+    )
+)
+
+if distance_metric == "Aitchison":
+    aitchison_zero_replacement = st.number_input(
+        "Aitchison zero replacement δ (%)",
+        min_value=0.01,
+        max_value=10.0,
+        value=0.5,
+        step=0.05,
+        format="%.2f",
+        help=(
+            "Each exact zero is replaced by δ percentage points. The positive "
+            "components are reduced proportionally so that the composition remains "
+            "closed and their mutual ratios are preserved. For integer percentage "
+            "data, 0.5% is a practical default."
+        )
+    )
+else:
+    aitchison_zero_replacement = 0.5
+
+distance_title = (
+    "Mahalanobis distance (diagonal covariance)"
+    if distance_metric == "Mahalanobis"
+    else "Aitchison distance"
+    if distance_metric == "Aitchison"
+    else "Log-Euclidean distance"
+)
+
+# Reference subgroup for the selected distance metric.
 available_reference_groups = [
     sg["name"] for sg in generated_subgroups if not sg["points"].empty
 ]
@@ -1186,13 +1578,13 @@ available_reference_groups = [
 reference_mode_options = ["Automatic (largest mean distance)"] + available_reference_groups
 
 selected_reference_option = st.selectbox(
-    "Log-Euclidean reference subgroup",
+    "Reference subgroup",
     reference_mode_options,
     index=0,
     help=(
-        "Automatic selects the subgroup with the largest mean log-Euclidean "
-        "distance to all other subgroups. Alternatively, choose any subgroup "
-        "as the reference for the displayed distances and color scale."
+        f"Automatic selects the subgroup with the largest mean {distance_title.lower()} "
+        "to all other subgroups. Alternatively, choose any subgroup as the reference "
+        "for the displayed distances and color scale."
     )
 )
 
@@ -1215,9 +1607,22 @@ if has_samples:
     subgroup_reference_distances = {}
     subgroup_distance_color_map = {}
 
-    df, subgroup_means, subgroup_sigmas = classify_diagonal_mahalanobis(
+    # Classify samples with the SAME metric selected above for subgroup distances.
+    df, subgroup_means, subgroup_sigmas = classify_by_selected_distance(
         df,
-        generated_subgroups
+        generated_subgroups,
+        distance_metric=distance_metric,
+        aitchison_zero_replacement=aitchison_zero_replacement
+    )
+
+    classification_distance_title = distance_title
+    classification_distance_column = "Classification_Distance"
+    classification_method_note = (
+        "diagonal covariance approximation; subgroup-specific standard deviations"
+        if distance_metric == "Mahalanobis"
+        else f"CLR geometry; multiplicative zero replacement δ={aitchison_zero_replacement:.2f}%"
+        if distance_metric == "Aitchison"
+        else "ln(x + 1) transformed Euclidean geometry"
     )
 
     df["Inside_Range_Field"] = df.apply(
@@ -1242,7 +1647,9 @@ else:
     ) = subgroup_reference_distance_colors(
         generated_subgroups,
         colorscale,
-        reference_name=selected_reference_name
+        reference_name=selected_reference_name,
+        distance_metric=distance_metric,
+        aitchison_zero_replacement=aitchison_zero_replacement
     )
 
     summary_df = pd.DataFrame(columns=["Subgroup", "Points", "Percent"])
@@ -1251,8 +1658,10 @@ else:
 reference_is_automatic = selected_reference_name is None
 
 
-PLOT_WIDTH = 1700
-PLOT_HEIGHT = 950
+# PLOT_WIDTH = 1700
+# PLOT_HEIGHT = 950
+PLOT_WIDTH = width=2260,
+PLOT_HEIGHT = height=1210,
 
 # Pairwise and three-way geometric overlap of visible subgroup fields.
 # Percentages are reported separately relative to each participating field.
@@ -1313,7 +1722,6 @@ if has_samples:
     legend_height_px = (
         padding_top_px
         + title_line_px
-        + 2 * method_line_px
         + gap_after_methods_px
         + locality_line_px
         + gap_before_groups_px
@@ -1347,9 +1755,7 @@ if has_samples:
     ]
 
     longest_entry_chars = max(
-        [len("Subgroup Classification"),
-         len("Classification -> Mahalanobis distance"),
-         len("(diagonal covariance approximation)"),
+        [len(classification_distance_title),
          len(f"Locality: {first_locality}"),
          len("Subgroup field overlap (shared area as % of each field)")]
         + [len(x) for x in complete_entries]
@@ -1365,11 +1771,23 @@ if has_samples:
     legend_x0 = 0.015
     legend_x1 = min(0.92, legend_x0 + legend_width)
 
-    # Build in-plot statistical summary text exactly in the style of the garnet application
+    # In-plot classification box: same compact layout as the distance-only view.
+    # The selected metric is the heading; locality follows directly below.
+    # For Mahalanobis, keep the main title large but render the explanatory
+    # parenthetical smaller so it stays comfortably inside the statistics box.
+    if distance_metric == "Mahalanobis":
+        covariance_fs = max(10, int(title_fs * 0.58))
+        classification_heading_html = (
+            f"<span style='font-size:{title_fs}px; font-weight:bold;'>Mahalanobis distance</span> "
+            f"<span style='font-size:{covariance_fs}px; font-weight:normal;'>(diagonal covariance)</span>"
+        )
+    else:
+        classification_heading_html = (
+            f"<span style='font-size:{title_fs}px; font-weight:bold;'>{classification_distance_title}</span>"
+        )
+
     stats_legend_text = (
-        f"<span style='font-size:{title_fs}px; font-weight:bold;'>Subgroup Classification</span><br>"
-        f"<span style='font-size:{method_fs}px; font-style:italic;'>Classification -> Mahalanobis distance</span><br>"
-        f"<span style='font-size:{method_fs}px; font-style:italic;'>(diagonal covariance approximation)</span><br><br>"
+        f"{classification_heading_html}<br>"
         f"<span style='font-size:{locality_fs}px;'>Locality: {first_locality}</span><br><br>"
     )
 
@@ -1466,7 +1884,7 @@ else:
 
     longest_entry_chars = max(
         [
-            len("Log-Euclidean distance"),
+            len(distance_title),
             len(
                 f"Reference: {reference_subgroup} "
                 + ("(automatic: largest mean distance)" if reference_is_automatic else "(user selected)")
@@ -1491,7 +1909,7 @@ else:
         else "user selected"
     )
     stats_legend_text = (
-        f"<span style='font-size:{title_fs}px; font-weight:bold;'>Log-Euclidean distance</span><br>"
+        f"<span style='font-size:{title_fs}px; font-weight:bold;'>{distance_title}</span><br>"
         f"<span style='font-size:{int(22 * legend_scale)}px; font-style:italic;'>"
         f"Reference: {ref_text} ({reference_note})</span><br><br>"
     )
@@ -1587,15 +2005,41 @@ if show_subgroups and generated_subgroups:
         color_map=active_subgroup_color_map
     )
 
-    if show_subgroup_labels:
+    if show_subgroup_labels and not has_samples:
         for i, sg in enumerate(nonempty_subgroups):
             pts = sg["points"]
             if pts.empty:
                 continue
 
-            # Use the centroid of all valid generated compositions as label position.
-            label_x = float(pts["x"].mean())
-            label_y = float(pts["y"].mean())
+            # Start from the centroid, then shift the abbreviation slightly
+            # toward the upper-left part of the subgroup field. This reduces
+            # collisions with sample points, which often lie near the centroid.
+            x_min = float(pts["x"].min())
+            x_max = float(pts["x"].max())
+            y_min = float(pts["y"].min())
+            y_max = float(pts["y"].max())
+
+            x_span = max(x_max - x_min, 1.0)
+            y_span = max(y_max - y_min, 1.0)
+
+            label_x = float(pts["x"].mean()) - 0.08 * x_span
+
+            # Dynamic vertical placement: move the abbreviation toward the upper
+            # part of the subgroup field so it is less likely to overlap sample
+            # points near the centroid. The displacement scales with field height,
+            # but is limited so labels remain visually attached to their subgroup.
+            y_offset = float(np.clip(0.20 * y_span, 0.8, 2.5))
+            label_y = float(pts["y"].mean()) + y_offset
+
+            # Prefer the upper part of the field. For very shallow subgroups the
+            # label may sit only slightly above the field (max. 0.6 y-units), which
+            # improves readability without making the assignment ambiguous.
+            label_y = max(label_y, y_min + 0.72 * y_span)
+
+            # Keep horizontal placement safely within the subgroup. Vertically,
+            # allow only a very small excursion beyond the upper edge.
+            label_x = min(max(label_x, x_min + 0.10 * x_span), x_max - 0.10 * x_span)
+            label_y = min(max(label_y, y_min + 0.10 * y_span), y_max + 0.60)
 
             # First two alphabetic characters of the subgroup name, upper case.
             letters = "".join(ch for ch in str(sg["name"]) if ch.isalpha())
@@ -1628,7 +2072,18 @@ if show_subgroups and generated_subgroups:
             + ", ".join(sg["name"] for sg in nonempty_subgroups)
         )
 
-# Continuous log-Euclidean subgroup-distance colorbar when no sample points are plotted.
+    if show_overlap_hatching and nonempty_subgroups:
+        add_overlap_hatching(
+            fig,
+            nonempty_subgroups,
+            hatch_spacing=0.65,
+            hatch_alpha=0.70,
+            hatch_width=1.60,
+            outline_alpha=0.75,
+            outline_width=2.20
+        )
+
+# Continuous subgroup-distance colorbar when no sample points are plotted.
 if (not has_samples) and reference_subgroup is not None and subgroup_reference_distances:
     max_ref_distance = max(subgroup_reference_distances.values())
 
@@ -1669,7 +2124,7 @@ if (not has_samples) and reference_subgroup is not None and subgroup_reference_d
         y=0.5,
         xref="paper",
         yref="paper",
-        text=f"Log-Euclidean distance from {reference_subgroup}",
+        text=f"{distance_title} from {reference_subgroup}",
         textangle=-90,
         showarrow=False,
         font=dict(size=14, color="black"),
@@ -1680,8 +2135,17 @@ if (not has_samples) and reference_subgroup is not None and subgroup_reference_d
 
 if has_samples:
     # Uploaded samples
-    ratio = df["A"] / (df["A"] + df["B"]).replace(0, np.nan)
-    ratio = ratio.fillna(0)
+    # The outer halo/colorbar represents the selected multivariate
+    # classification distance of each sample to its assigned subgroup.
+    sample_distances = pd.to_numeric(
+        df[classification_distance_column], errors="coerce"
+    ).astype(float)
+    finite_sample_distances = sample_distances[np.isfinite(sample_distances)]
+    max_sample_distance = (
+        float(finite_sample_distances.max())
+        if len(finite_sample_distances) > 0 else 1.0
+    )
+    max_sample_distance = max(max_sample_distance, 1e-9)
 
     hover_text = [
         (
@@ -1691,22 +2155,22 @@ if has_samples:
             f"{labels[2]}: {c:.0f}%<br>"
             f"{labels[3]}: {d:.0f}%<br>"
             f"Nearest subgroup: {sg}<br>"
-            f"Mahalanobis distance: {dist:.3f}<br>"
+            f"{classification_distance_title}: {dist:.3f}<br>"
             f"Inside defined range field: {inside}"
         )
         for loc, a, b, c, d, sg, dist, inside in zip(
             df["Locality"],
             df["A"], df["B"], df["C"], df["D"],
             df["Subgroup"],
-            df["Mahalanobis_Distance"],
+            df[classification_distance_column],
             df["Inside_Range_Field"]
         )
     ]
 
     # ========================================================
     # Layered sample markers
-    # Outer ring = continuous colorbar value A / (A+B)
-    # Inner core = nearest subgroup from minimum Mahalanobis distance
+    # Outer ring = selected multivariate distance to assigned subgroup
+    # Inner core = nearest subgroup from the minimum selected classification distance
     # ========================================================
 
     subgroup_color_map = {
@@ -1744,21 +2208,26 @@ if has_samples:
         )
     )
 
-    # 2) Outer ring: continuous colorbar value
+    # 2) Outer ring: selected multivariate classification distance
     fig.add_trace(
         go.Scatter(
             x=df["x"], y=df["y"],
             mode="markers",
             marker=dict(
                 size=color_ring_size,
-                color=ratio,
+                color=sample_distances,
                 colorscale=colorscale,
-                cmin=0,
-                cmax=1,
+                cmin=0.0,
+                cmax=max_sample_distance,
                 opacity=0.95,
                 line=dict(width=0),
                 colorbar=dict(
-                    title=f"{labels[0]} / ({labels[0]} + {labels[1]})",
+                    title=dict(
+                        text=classification_distance_title,
+                        side="right",
+                        font=dict(size=13, color="black")
+                    ),
+                    tickfont=dict(size=12, color="black"),
                     thickness=20
                 )
             ),
@@ -1767,7 +2236,7 @@ if has_samples:
         )
     )
 
-    # 3) Inner core: color of nearest subgroup by Mahalanobis distance
+    # 3) Inner core: color of nearest subgroup by selected classification distance
     fig.add_trace(
         go.Scatter(
             x=df["x"], y=df["y"],
@@ -1784,6 +2253,56 @@ if has_samples:
             showlegend=False
         )
     )
+
+    # 4) Subgroup abbreviations on the topmost plot layer.
+    # Draw these AFTER the sample markers so the labels remain visible.
+    if show_subgroup_labels and show_subgroups:
+        for sg in [g for g in generated_subgroups if not g["points"].empty]:
+            pts = sg["points"]
+
+            x_min = float(pts["x"].min())
+            x_max = float(pts["x"].max())
+            y_min = float(pts["y"].min())
+            y_max = float(pts["y"].max())
+
+            x_span = max(x_max - x_min, 1.0)
+            y_span = max(y_max - y_min, 1.0)
+
+            label_x = float(pts["x"].mean()) - 0.08 * x_span
+
+            # Dynamic vertical placement: move the abbreviation toward the upper
+            # part of the subgroup field so it is less likely to overlap sample
+            # points near the centroid. The displacement scales with field height,
+            # but is limited so labels remain visually attached to their subgroup.
+            y_offset = float(np.clip(0.20 * y_span, 0.8, 2.5))
+            label_y = float(pts["y"].mean()) + y_offset
+
+            # Prefer the upper part of the field. For very shallow subgroups the
+            # label may sit only slightly above the field (max. 0.6 y-units), which
+            # improves readability without making the assignment ambiguous.
+            label_y = max(label_y, y_min + 0.72 * y_span)
+
+            # Keep horizontal placement safely within the subgroup. Vertically,
+            # allow only a very small excursion beyond the upper edge.
+            label_x = min(max(label_x, x_min + 0.10 * x_span), x_max - 0.10 * x_span)
+            label_y = min(max(label_y, y_min + 0.10 * y_span), y_max + 0.60)
+
+            letters = "".join(ch for ch in str(sg["name"]) if ch.isalpha())
+            short_label = (letters[:2] if len(letters) >= 2 else letters).upper()
+
+            fig.add_trace(
+                go.Scatter(
+                    x=[label_x],
+                    y=[label_y],
+                    mode="text",
+                    text=[f"<b>{short_label}</b>"],
+                    textposition="middle center",
+                    textfont=dict(size=20, color="black", family="Arial Black"),
+                    hoverinfo="skip",
+                    showlegend=False,
+                    legendgroup=sg["name"]
+                )
+            )
 
     # 4) Small black centre point
     fig.add_trace(
@@ -1865,7 +2384,7 @@ fig.add_shape(
     x1=x_min_frame,
     y0=0,
     y1=100,
-    line=dict(color="black", width=3),
+    line=dict(color="#555555", width=0.8),
     layer="above"
 )
 
@@ -1875,7 +2394,7 @@ fig.add_shape(
     x1=x_max_frame,
     y0=100,
     y1=100,
-    line=dict(color="black", width=2),
+    line=dict(color="#555555", width=0.8),
     layer="above"
 )
 
@@ -1929,38 +2448,25 @@ st.plotly_chart(fig, use_container_width=True)
 
 st.subheader("Export figure")
 
-export_format = st.selectbox(
-    "Export format",
-    ["PNG", "SVG"],
-    key="cantor_export_format"
-)
-
 try:
     img_bytes = fig.to_image(
-        format=export_format.lower(),
+        format="png",
         width=PLOT_WIDTH,
         height=PLOT_HEIGHT,
         scale=2
     )
 
-    if export_format == "PNG":
-        file_extension = "png"
-        mime_type = "image/png"
-    else:
-        file_extension = "svg"
-        mime_type = "image/svg+xml"
-
     st.download_button(
-        label=f"Download {export_format}",
+        label="Download PNG",
         data=img_bytes,
-        file_name=f"cantor_grid.{file_extension}",
-        mime=mime_type
+        file_name="cantor_grid.png",
+        mime="image/png"
     )
 
 except Exception as exc:
     st.warning(
         "Figure export is currently unavailable. "
-        "For PNG/SVG export, make sure Kaleido is installed. "
+        "For PNG export, make sure Kaleido is installed. "
         f"Details: {exc}"
     )
 
@@ -1971,10 +2477,10 @@ if has_samples:
     st.subheader("Distance-based subgroup classification")
 
     st.caption(
-        "Classification -> Mahalanobis distance using a diagonal "
-        "covariance approximation. Subgroup means and standard deviations "
-        "are calculated from the valid integer compositions generated from "
-        "the specified subgroup ranges."
+        f"Classification -> {classification_distance_title}. "
+        f"{classification_method_note}. Each sample is assigned to the subgroup "
+        "with the smallest selected multivariate distance. For Mahalanobis, deviations "
+        "from each subgroup centroid are scaled by that subgroup's component-wise standard deviations."
     )
 
     if not summary_df.empty:
@@ -1998,21 +2504,22 @@ if has_samples:
                 f"{labels[3]} SD": round(float(sigma[3]), 2),
             })
 
-        with st.expander("Show subgroup means and standard deviations"):
+        with st.expander("Show subgroup centroid components and standard deviations"):
             st.dataframe(pd.DataFrame(stats_rows), use_container_width=True)
 
     st.subheader("Normalized uploaded data")
     display_df = df[
         [
             "Locality", "A", "B", "C", "D",
-            "Subgroup", "Mahalanobis_Distance", "Inside_Range_Field"
+            "Subgroup", classification_distance_column, "Inside_Range_Field"
         ]
     ].rename(
         columns={
             "A": labels[0],
             "B": labels[1],
             "C": labels[2],
-            "D": labels[3]
+            "D": labels[3],
+            classification_distance_column: classification_distance_title
         }
     )
     st.dataframe(display_df, use_container_width=False)
