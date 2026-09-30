@@ -1660,9 +1660,8 @@ reference_is_automatic = selected_reference_name is None
 
 # PLOT_WIDTH = 1700
 # PLOT_HEIGHT = 950
-
-PLOT_WIDTH = 1775
-PLOT_HEIGHT = 950
+PLOT_WIDTH = width=2260,
+PLOT_HEIGHT = height=1210,
 
 # Pairwise and three-way geometric overlap of visible subgroup fields.
 # Percentages are reported separately relative to each participating field.
