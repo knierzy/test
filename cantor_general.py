@@ -1513,6 +1513,23 @@ show_subgroup_labels = st.checkbox(
     key="show_subgroup_labels_v2",
     help="Places the first two letters in the upper part of each subgroup field using a height-dependent, limited vertical offset to reduce overlap with sample points."
 )
+show_subgroup_labels = st.checkbox(
+    "Show subgroup labels (first two letters)",
+    value=True,
+    key="show_subgroup_labels_v2",
+    help="Places the first two letters in the upper part of each subgroup field."
+)
+
+subgroup_label_size = st.slider(
+    "Subgroup abbreviation font size",
+    min_value=8,
+    max_value=40,
+    value=18,
+    step=1,
+    help="Controls the font size of the subgroup abbreviations shown inside the plot."
+)
+
+
 show_gray_grid = st.checkbox("Show gray Cantor grid", value=True)
 show_overlap_hatching = st.checkbox(
     "Highlight subgroup overlap",
